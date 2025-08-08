@@ -1,4 +1,4 @@
-import swisseph as se
+import pyswisseph as se
 from datetime import date
 from historical_pattern_finder import PLANETS_HEBREW_MAP, SIGNS_HEBREW_MAP, find_historical_pattern
 
