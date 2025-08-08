@@ -2,11 +2,6 @@
 from fastapi import FastAPI, HTTPException
 from datetime import date
 from typing import List, Optional
-import sys
-import os
-
-# הוספת הנתיב של הפרויקט כדי לאפשר ייבוא של הקבצים שלנו
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # ייבוא הפונקציות הקיימות שלנו
 from astro import calculate_birth_chart
@@ -14,6 +9,11 @@ from historical_pattern_finder import find_historical_pattern, find_historical_a
 from sine_graph_generator import generate_sine_graph_data
 from library_manager import save_search, get_all_searches, search_library, delete_search
 
+app = FastAPI(
+    title="AstroViz API",
+    description="API for astrological calculations and historical data analysis.",
+    version="1.0.0",
+)
 
 app = FastAPI(
     title="AstroViz API",
