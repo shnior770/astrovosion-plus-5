@@ -1,6 +1,13 @@
 import pyswisseph as se
 from datetime import date
+import os
 from historical_pattern_finder import PLANETS_HEBREW_MAP, SIGNS_HEBREW_MAP, find_historical_pattern
+
+# הגדרת נתיב הנתונים של swisseph פעם אחת, בראש הקובץ
+current_dir = os.path.dirname(os.path.abspath(__file__))
+ephe_path = os.path.join(current_dir, 'swisseph_data/')
+se.set_ephe_path(ephe_path)
+se.swe_set_ephe_path(ephe_path)
 
 def calculate_houses(jd, lat, lon):
     """
@@ -23,9 +30,6 @@ def calculate_birth_chart(target_date, lat, lon):
     """
     מחשב מפת לידה מלאה: מיקומי כוכבים ומיקומי בתים.
     """
-    se.set_ephe_path('swisseph_data/')
-    se.swe_set_ephe_path('swisseph_data/')
-    
     jd = se.julday(target_date.year, target_date.month, target_date.day)
 
     birth_chart = {}
