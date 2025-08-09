@@ -1,4 +1,3 @@
-# api.py
 from fastapi import FastAPI, HTTPException
 from datetime import date
 from typing import List, Optional
@@ -8,12 +7,6 @@ from astro import calculate_birth_chart
 from historical_pattern_finder import find_historical_pattern, find_historical_aspect, PLANETS_HEBREW_MAP, ASPECTS_HEBREW_MAP
 from sine_graph_generator import generate_sine_graph_data
 from library_manager import save_search, get_all_searches, search_library, delete_search
-
-app = FastAPI(
-    title="AstroViz API",
-    description="API for astrological calculations and historical data analysis.",
-    version="1.0.0",
-)
 
 app = FastAPI(
     title="AstroViz API",
