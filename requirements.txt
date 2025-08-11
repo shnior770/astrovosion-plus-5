@@ -2,3 +2,4 @@ swisseph
 Flask
 logging
 datetime
+gunicorn==22.0.0
