@@ -1,4 +1,4 @@
-swisseph==2.10.0.1
+pyswisseph==2.10.0.1
 Flask
 logging
 datetime
