@@ -1,5 +1,5 @@
 # השתמש בתמונת בסיס של Python עם גרסה יציבה (3.10 היא בחירה טובה)
-FROM python:3.10-slim-buster
+FROM python:3.10-slim-bullseye
 
 # הגדר את ספריית העבודה בתוך הקונטיינר
 WORKDIR /app
