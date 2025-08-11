@@ -1,0 +1,2 @@
+build-essential
+libgfortran5 # או libgfortran3, תלוי בדרישה המדויקת של swisseph
