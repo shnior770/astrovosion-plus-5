@@ -1,6 +1,5 @@
 swisseph
 Flask
-itertools
 logging
 json
 datetime
