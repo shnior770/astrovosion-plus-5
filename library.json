@@ -1,1 +1,645 @@
-[]
+[
+  {
+    "timestamp": "2025-08-10T16:16:57.680149",
+    "test_info": {
+      "function": "generate_wave_chart_data",
+      "parameters": {
+        "planet_names": [],
+        "start_date": "2000-01-01",
+        "end_date": "2000-06-30",
+        "aspects_to_find": [],
+        "resolution": "monthly",
+        "patterns_to_find": [
+          "Star of David"
+        ]
+      },
+      "success": false,
+      "duration_ms": null,
+      "error": "Invalid number of planets selected for Star of David (must be 6)."
+    }
+  },
+  {
+    "timestamp": "2025-08-10T16:17:05.350067",
+    "test_info": {
+      "function": "generate_wave_chart_data",
+      "parameters": {
+        "planet_names": [
+          "מרקורי",
+          "ונוס",
+          "מאדים",
+          "יופיטר",
+          "שבתאי",
+          "אורנוס"
+        ],
+        "start_date": "2000-01-01",
+        "end_date": "2000-06-30",
+        "aspects_to_find": [],
+        "resolution": "monthly",
+        "patterns_to_find": [
+          "Star of David"
+        ]
+      },
+      "success": true,
+      "duration_ms": 16.42,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T16:29:01.729365",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1986-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 7.03,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T16:33:54.787237",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1986-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 5.25,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T16:47:42.049176",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1986-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 1.14,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T17:03:51.372760",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1986-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 1.75,
+      "error": "GEOMETRIC_PATTERN_ORB is not defined"
+    }
+  },
+  {
+    "timestamp": "2025-08-10T17:14:20.602882",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1986-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 0,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T17:15:39.339134",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1973-10-06",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 2.65,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T17:16:29.776074",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1967-06-05",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 4.35,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T17:22:56.875637",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1986-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 9.14,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T17:24:07.896231",
+    "test_info": {
+      "function": "find_complex_constellation",
+      "parameters": {
+        "conditions": [
+          {
+            "planet_name": "אורנוס",
+            "sign_name": "קשת",
+            "degree": 22
+          },
+          {
+            "planet_name": "ונוס",
+            "sign_name": "שור",
+            "degree": 13
+          },
+          {
+            "planet_name": "זנב תלי",
+            "sign_name": "שור",
+            "degree": 0
+          },
+          {
+            "planet_name": "יופיטר",
+            "sign_name": "דגים",
+            "degree": 11
+          },
+          {
+            "planet_name": "ירח",
+            "sign_name": "תאומים",
+            "degree": 4
+          },
+          {
+            "planet_name": "מאדים",
+            "sign_name": "גדי",
+            "degree": 7
+          },
+          {
+            "planet_name": "מרקורי",
+            "sign_name": "דגים",
+            "degree": 25
+          },
+          {
+            "planet_name": "נפטון",
+            "sign_name": "גדי",
+            "degree": 5
+          },
+          {
+            "planet_name": "פלוטו",
+            "sign_name": "עקרב",
+            "degree": 6
+          },
+          {
+            "planet_name": "ראש תלי",
+            "sign_name": "טלה",
+            "degree": 29
+          },
+          {
+            "planet_name": "שבתאי",
+            "sign_name": "קשת",
+            "degree": 9
+          },
+          {
+            "planet_name": "שמש",
+            "sign_name": "טלה",
+            "degree": 22
+          }
+        ],
+        "start_date": "1900-07-10",
+        "end_date": "2001-01-01",
+        "resolution": "yearly"
+      },
+      "success": true,
+      "duration_ms": 23.5,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T17:48:32.174985",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1986-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 3.6,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T17:49:09.478714",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1986-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 0,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T17:49:23.526792",
+    "test_info": {
+      "function": "generate_wave_chart_data",
+      "parameters": {
+        "planet_names": [
+          "שמש",
+          "ירח",
+          "מרקורי",
+          "ונוס",
+          "מאדים",
+          "יופיטר",
+          "שבתאי",
+          "אורנוס",
+          "נפטון",
+          "פלוטו",
+          "ראש תלי",
+          "זנב תלי"
+        ],
+        "start_date": "1986-04-13",
+        "end_date": "1986-10-13",
+        "aspects_to_find": [],
+        "resolution": "daily",
+        "patterns_to_find": []
+      },
+      "success": false,
+      "duration_ms": null,
+      "error": "Invalid number of planets selected for wave chart (must be 1 or 2 for regular chart)."
+    }
+  },
+  {
+    "timestamp": "2025-08-10T17:49:32.976061",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1986-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 0,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T17:49:48.334005",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1986-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 1.75,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T17:50:10.586913",
+    "test_info": {
+      "function": "find_complex_constellation",
+      "parameters": {
+        "conditions": [
+          {
+            "planet_name": "אורנוס",
+            "sign_name": "קשת",
+            "degree": 22
+          },
+          {
+            "planet_name": "ונוס",
+            "sign_name": "שור",
+            "degree": 13
+          },
+          {
+            "planet_name": "יופיטר",
+            "sign_name": "דגים",
+            "degree": 11
+          },
+          {
+            "planet_name": "מאדים",
+            "sign_name": "גדי",
+            "degree": 7
+          },
+          {
+            "planet_name": "מרקורי",
+            "sign_name": "דגים",
+            "degree": 25
+          },
+          {
+            "planet_name": "נפטון",
+            "sign_name": "גדי",
+            "degree": 5
+          },
+          {
+            "planet_name": "פלוטו",
+            "sign_name": "עקרב",
+            "degree": 6
+          },
+          {
+            "planet_name": "שבתאי",
+            "sign_name": "קשת",
+            "degree": 9
+          }
+        ],
+        "start_date": "2000-01-01",
+        "end_date": "2001-01-01",
+        "resolution": "daily"
+      },
+      "success": true,
+      "duration_ms": 75.82,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T17:53:02.685022",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1986-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 3.65,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T17:53:54.607171",
+    "test_info": {
+      "function": "find_complex_constellation",
+      "parameters": {
+        "conditions": [
+          {
+            "planet_name": "אורנוס",
+            "sign_name": "קשת",
+            "degree": 22
+          },
+          {
+            "planet_name": "ונוס",
+            "sign_name": "שור",
+            "degree": 13
+          },
+          {
+            "planet_name": "זנב תלי",
+            "sign_name": "שור",
+            "degree": 0
+          },
+          {
+            "planet_name": "יופיטר",
+            "sign_name": "דגים",
+            "degree": 11
+          },
+          {
+            "planet_name": "ירח",
+            "sign_name": "תאומים",
+            "degree": 4
+          },
+          {
+            "planet_name": "מאדים",
+            "sign_name": "גדי",
+            "degree": 7
+          },
+          {
+            "planet_name": "מרקורי",
+            "sign_name": "דגים",
+            "degree": 25
+          },
+          {
+            "planet_name": "נפטון",
+            "sign_name": "גדי",
+            "degree": 5
+          },
+          {
+            "planet_name": "פלוטו",
+            "sign_name": "עקרב",
+            "degree": 6
+          },
+          {
+            "planet_name": "ראש תלי",
+            "sign_name": "טלה",
+            "degree": 29
+          },
+          {
+            "planet_name": "שבתאי",
+            "sign_name": "קשת",
+            "degree": 9
+          },
+          {
+            "planet_name": "שמש",
+            "sign_name": "טלה",
+            "degree": 22
+          }
+        ],
+        "start_date": "2000-01-01",
+        "end_date": "2001-01-01",
+        "resolution": "daily"
+      },
+      "success": true,
+      "duration_ms": 79.82,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T18:03:05.875029",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1986-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 1.89,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T18:04:00.780229",
+    "test_info": {
+      "function": "generate_wave_chart_data",
+      "parameters": {
+        "planet_names": [
+          "יופיטר",
+          "שבתאי"
+        ],
+        "start_date": "1986-04-13",
+        "end_date": "1986-10-13",
+        "aspects_to_find": [
+          "היפוך"
+        ],
+        "resolution": "yearly",
+        "patterns_to_find": []
+      },
+      "success": true,
+      "duration_ms": 2.27,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T18:04:09.597543",
+    "test_info": {
+      "function": "generate_wave_chart_data",
+      "parameters": {
+        "planet_names": [
+          "יופיטר",
+          "שבתאי"
+        ],
+        "start_date": "1986-04-13",
+        "end_date": "1986-10-13",
+        "aspects_to_find": [
+          "היפוך"
+        ],
+        "resolution": "yearly",
+        "patterns_to_find": [
+          "Star of David"
+        ]
+      },
+      "success": false,
+      "duration_ms": null,
+      "error": "Invalid number of planets selected for Star of David (must be 6)."
+    }
+  },
+  {
+    "timestamp": "2025-08-10T18:20:15.444467",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1986-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 3.95,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T18:20:51.533921",
+    "test_info": {
+      "function": "generate_wave_chart_data",
+      "parameters": {
+        "planet_names": [
+          "שמש",
+          "ירח",
+          "מרקורי",
+          "ונוס",
+          "מאדים",
+          "יופיטר",
+          "שבתאי",
+          "אורנוס",
+          "נפטון",
+          "פלוטו",
+          "ראש תלי",
+          "זנב תלי"
+        ],
+        "start_date": "1981-04-13",
+        "end_date": "1991-04-12",
+        "aspects_to_find": [],
+        "resolution": "yearly",
+        "patterns_to_find": []
+      },
+      "success": true,
+      "duration_ms": 21.41,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T18:21:23.648330",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1986-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 0.38,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T18:21:44.429768",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1981-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 4.02,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T18:21:47.751108",
+    "test_info": {
+      "function": "calculate_event_chart",
+      "parameters": {
+        "date": "1981-04-13",
+        "lat": 31.7683,
+        "long": 35.2137
+      },
+      "success": true,
+      "duration_ms": 6.53,
+      "error": null
+    }
+  },
+  {
+    "timestamp": "2025-08-10T18:22:48.564763",
+    "test_info": {
+      "function": "generate_wave_chart_data",
+      "parameters": {
+        "planet_names": [
+          "שמש",
+          "ירח",
+          "מרקורי",
+          "ונוס",
+          "מאדים",
+          "יופיטר",
+          "שבתאי",
+          "אורנוס",
+          "נפטון",
+          "פלוטו",
+          "ראש תלי",
+          "זנב תלי"
+        ],
+        "start_date": "1931-04-13",
+        "end_date": "2031-04-12",
+        "aspects_to_find": [
+          "היפוך"
+        ],
+        "resolution": "yearly",
+        "patterns_to_find": []
+      },
+      "success": true,
+      "duration_ms": 224.01,
+      "error": null
+    }
+  }
+]

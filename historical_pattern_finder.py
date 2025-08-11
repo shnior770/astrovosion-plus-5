@@ -1,158 +1,377 @@
 import swisseph as se
-from datetime import date, timedelta
-import json
+from datetime import date, timedelta, datetime
+from typing import List, Dict, Any, Optional
 
-# מילון שמות כוכבים
-PLANETS_HEBREW_MAP = {
-    "שמש": se.SUN, "ירח": se.MOON, "מרקורי": se.MERCURY, "ונוס": se.VENUS,
-    "מאדים": se.MARS, "יופיטר": se.JUPITER, "שבתאי": se.SATURN,
-    "אורנוס": se.URANUS, "נפטון": se.NEPTUNE, "פלוטו": se.PLUTO,
-    # הוספת ראש וזנב תלי
-    "ראש תלי": se.TRUE_NODE,
-    "זנב תלי": se.MEAN_NODE # ניתן להשתמש ב-MEAN_NODE או ב-TRUE_NODE
+# ייבוא נתונים ופונקציות מודול הליבה astro.py
+# זה מבטיח עקביות ומניעת כפילויות בהגדרות
+from astro import (
+    PLANETS_HEBREW_MAP,
+    SIGNS_HEBREW_MAP_DEGREE_RANGES, # נשתמש במילון המזלות עם טווחי המעלות
+    get_sign_from_longitude,
+    GEOMETRIC_PATTERN_ORB, # נייבא את האורב הגאומטרי הקבוע
+    get_angular_distance,
+    find_all_grand_trines,
+    find_star_of_david
+)
+
+# הגדרת נתיב לקבצי האפמריס (חובה עבור swisseph)
+se.set_ephe_path('ephe')
+
+# תקופות מסלוליות ממוצעות של כוכבים (בימים, לצורך הערכה)
+# המידע הזה ישמש לאופטימיזציית חיפושים ארוכים
+PLANETARY_ORBITAL_PERIODS_DAYS = {
+    "שמש": 365.25,
+    "ירח": 27.32,
+    "מרקורי": 87.97,
+    "ונוס": 224.7,
+    "מאדים": 686.98,
+    "יופיטר": 4332.59,   # ~11.86 שנים
+    "שבתאי": 10759.22,  # ~29.46 שנים
+    "אורנוס": 30688.5,   # ~84.02 שנים
+    "נפטון": 60182.0,   # ~164.79 שנים
+    "פלוטו": 90560.0,   # ~247.92 שנים
+    "ראש תלי": 6798.3,   # ~18.6 שנים (מחזור נסיגה)
+    "זנב תלי": 6798.3    # זהה לראש תלי
 }
 
-# מילון שמות מזלות בעברית
-SIGNS_HEBREW_MAP = {
-    0: "טלה", 1: "שור", 2: "תאומים", 3: "סרטן", 4: "אריה", 5: "בתולה",
-    6: "מאזניים", 7: "עקרב", 8: "קשת", 9: "גדי", 10: "דלי", 11: "דגים"
-}
+# הגדרת סף לזיהוי כוכב כ"איטי" (לדוגמה, תקופה מעל 10 שנים)
+SLOW_PLANET_THRESHOLD_DAYS = 365 * 10 
 
-# מילון היבטים עם מעלות ואורבים
-ASPECTS_HEBREW_MAP = {
-    "צמידות": {"degree": 0, "orb": 2},
-    "היפוך": {"degree": 180, "orb": 2},
-    "טרין": {"degree": 120, "orb": 2},
-    "סקסטיל": {"degree": 60, "orb": 2},
-    "ריבוע": {"degree": 90, "orb": 2}
-}
-
-def get_sign_id(longitude):
-    """מחזירה את מספר המזל (0-11) על פי קו האורך."""
-    return int(longitude / 30)
-
-def find_historical_pattern(planet_name, sign_name, start_date, end_date, target_degree=None, degree_tolerance=0.5):
+def calculate_next_date_for_search(current_date: date, resolution: str) -> date:
+    """מחשבת את התאריך הבא בהתאם לרזולוציה.
+    מקבלת אובייקט date.
     """
-    סורקת תקופה היסטורית ומחזירה את כל התאריכים שבהם כוכב מסוים נמצא במזל מסוים
-    ובמעלה נתונים.
+    if resolution == "weekly":
+        return current_date + timedelta(days=7)
+    elif resolution == "monthly":
+        year = current_date.year
+        month = current_date.month + 1
+        if month > 12:
+            month = 1
+            year += 1
+        # מנסה לשמור על היום בחודש, או לעבור לסוף החודש אם הוא לא קיים (למשל, 31 בפברואר)
+        try:
+            # שימוש ב-datetime לצורך טיפול בשנה 0 במידת הצורך
+            return date(year, month, current_date.day)
+        except ValueError:
+            # אם היום לא חוקי בחודש הבא (לדוגמה, 31 בפברואר), קח את היום האחרון של החודש הבא
+            next_month = current_date.month + 1
+            next_year = current_date.year
+            if next_month > 12:
+                next_month = 1
+                next_year += 1
+
+            # יצירת היום הראשון של החודש הבא, ואז חיסור יום אחד
+            first_day_of_next_month = date(next_year, next_month, 1)
+            return first_day_of_next_month - timedelta(days=1)
+    elif resolution == "yearly":
+        return date(current_date.year + 1, current_date.month, current_date.day)
+    else: # daily
+        return current_date + timedelta(days=1)
+
+def find_constellation_planet_in_sign(
+    planet_name: str, 
+    sign_name: str, 
+    start_year: int, start_month: int, start_day: int,
+    end_year: int, end_month: int, end_day: int,
+    resolution: str = "daily", 
+    degree: Optional[int] = None
+) -> List[Dict[str, Any]]:
     """
+    מחפש תאריכים שבהם כוכב מסוים נמצא במזל ספציפי, ואולי גם במעלה ספציפית.
+    מקבל שנות התחלה וסיום בפורמט אסטרונומי (שלילי עבור שנים לפני הספירה).
+    """
+    se.set_ephe_path('ephe')
+    
+    results = []
+    
+    # יצירת אובייקטי date מתאריכי התחלה וסיום
+    start_dt = datetime(start_year, start_month, start_day)
+    end_dt = datetime(end_year, end_month, end_day)
+
+    current_date = start_dt.date() # שימוש באובייקט date
+
     planet_id = PLANETS_HEBREW_MAP.get(planet_name)
-    try:
-        sign_id = [key for key, value in SIGNS_HEBREW_MAP.items() if value == sign_name][0]
-    except (IndexError, KeyError):
-        print(f"שם מזל לא חוקי: {sign_name}. אנא בחר מתוך הרשימה:")
-        print(list(SIGNS_HEBREW_MAP.values()))
-        return []
-
     if planet_id is None:
-        print(f"שם כוכב לא חוקי: {planet_name}. אנא בחר מתוך הרשימה:")
-        print(list(PLANETS_HEBREW_MAP.keys()))
-        return []
+        return [{"error": f"שם כוכב לא חוקי: {planet_name}"}]
 
-    found_dates = []
-    current_date = start_date
-    delta = timedelta(days=1)
+    # ודא שהמזל קיים במילון טווחי המעלות
+    if sign_name not in SIGNS_HEBREW_MAP_DEGREE_RANGES:
+        return [{"error": f"שם מזל לא חוקי: {sign_name}"}]
     
-    degree_info = f" במעלה {target_degree}" if target_degree is not None else ""
-    print(f"מתחיל סריקה: מתי {planet_name} היה במזל {sign_name}{degree_info} מ- {start_date} עד {end_date}...")
-    
-    while current_date <= end_date:
+    sign_start_deg, sign_end_deg = SIGNS_HEBREW_MAP_DEGREE_RANGES[sign_name]
+
+    print(f"מתחיל חיפוש היסטורי עבור {planet_name} ב{sign_name} (מעלה {degree if degree is not None else 'כלשהי'}) מ- {start_dt.strftime('%Y-%m-%d')} עד {end_dt.strftime('%Y-%m-%d')} ברזולוציית {resolution}...")
+
+    while current_date <= end_dt.date():
+        # se.utc_to_jd מקבל שנה, חודש, יום בנפרד (כולל שנים אסטרונומיות 0 או שליליות)
         jd_utc = se.utc_to_jd(current_date.year, current_date.month, current_date.day, 0, 0, 0)[1]
-        planet_pos, _ = se.calc_ut(jd_utc, planet_id)
-        longitude = planet_pos[0]
         
-        degree_in_sign = longitude % 30
-        
-        is_in_sign = get_sign_id(longitude) == sign_id
-        is_in_degree = True
-        if target_degree is not None:
-            is_in_degree = abs(degree_in_sign - target_degree) <= degree_tolerance
-        
-        if is_in_sign and is_in_degree:
-            found_dates.append({
-                "date": str(current_date),
-                "longitude": round(longitude, 2),
-                "degree_in_sign": round(degree_in_sign, 2),
-                "sign": sign_name
-            })
-            
-        current_date += delta
-        
-    print("סריקה הסתיימה.")
-    return found_dates
+        try:
+            planet_pos, _ = se.calc_ut(jd_utc, planet_id)
+            longitude = planet_pos[0] % 360 # ודא שהמעלות בין 0 ל-360
 
-def find_historical_aspect(planet1_name, planet2_name, aspect_name, start_date, end_date):
+            # בדיקה אם הכוכב נמצא במזל הנכון
+            if sign_start_deg <= longitude < sign_end_deg:
+                degree_in_sign = int(longitude) % 30
+                # אם נתון גם מעלה, בדוק התאמה
+                if degree is None or degree_in_sign == degree:
+                    results.append({
+                        "date": str(current_date),
+                        "planet_name": planet_name,
+                        "sign_name": sign_name,
+                        "longitude": round(longitude, 2),
+                        "degree_in_sign": degree_in_sign
+                    })
+        except Exception as e:
+            print(f"שגיאה בחישוב מיקום {planet_name} בתאריך {current_date}: {e}")
+            # נמשיך הלאה גם אם יש שגיאה ביום ספציפי
+
+        current_date = calculate_next_date_for_search(current_date, resolution)
+    
+    print("חיפוש היסטורי הסתיים.")
+    return results
+
+def find_constellation_aspect(
+    planet1_name: str, planet2_name: str, aspect_name: str, 
+    start_year: int, start_month: int, start_day: int,
+    end_year: int, end_month: int, end_day: int,
+    resolution: str = "daily", orb: float = 1.0
+) -> List[Dict[str, Any]]:
     """
-    סורקת תקופה היסטורית ומחזירה את כל התאריכים שבהם שני כוכבים נמצאים בהיבט מסוים.
+    מחפש תאריכים שבהם נוצר היבט ספציפי בין שני כוכבים.
+    מקבל שנות התחלה וסיום בפורמט אסטרונומי (שלילי עבור שנים לפני הספירה).
     """
+    se.set_ephe_path('ephe')
+    
+    results = []
+    
+    # יצירת אובייקטי date מתאריכי התחלה וסיום
+    start_dt = datetime(start_year, start_month, start_day)
+    end_dt = datetime(end_year, end_month, end_day)
+
+    current_date = start_dt.date() # שימוש באובייקט date
+
     planet1_id = PLANETS_HEBREW_MAP.get(planet1_name)
     planet2_id = PLANETS_HEBREW_MAP.get(planet2_name)
-    aspect_info = ASPECTS_HEBREW_MAP.get(aspect_name)
     
     if planet1_id is None or planet2_id is None:
-        print("שם כוכב לא חוקי.")
-        return []
+        return [{"error": f"שם כוכב לא חוקי: {planet1_name} או {planet2_name}"}]
+
+    ASPECT_DEGREES = {
+        "צמידות": 0, "היפוך": 180, "טרין": 120, "סקסטיל": 60, "ריבוע": 90
+    }
+
+    if aspect_name not in ASPECT_DEGREES:
+        return [{"error": f"שם היבט לא חוקי: {aspect_name}"}]
     
-    if aspect_info is None:
-        print("שם היבט לא חוקי. אנא בחר מתוך הרשימה:")
-        print(list(ASPECTS_HEBREW_MAP.keys()))
-        return []
-        
-    found_aspects = []
-    current_date = start_date
-    delta = timedelta(days=1)
+    target_degree = ASPECT_DEGREES[aspect_name]
 
-    print(f"מתחיל סריקה: מתי {planet1_name} היה ב{aspect_name} ל{planet2_name} מ- {start_date} עד {end_date}...")
+    print(f"מתחיל חיפוש היסטורי עבור היבט {aspect_name} בין {planet1_name} ל-{planet2_name} מ- {start_dt.strftime('%Y-%m-%d')} עד {end_dt.strftime('%Y-%m-%d')} ברזולוציית {resolution}...")
 
-    while current_date <= end_date:
+    while current_date <= end_dt.date():
+        # se.utc_to_jd מקבל שנה, חודש, יום בנפרד (כולל שנים אסטרונומיות 0 או שליליות)
         jd_utc = se.utc_to_jd(current_date.year, current_date.month, current_date.day, 0, 0, 0)[1]
         
-        pos1, _ = se.calc_ut(jd_utc, planet1_id)
-        pos2, _ = se.calc_ut(jd_utc, planet2_id)
-        
-        lon1 = pos1[0]
-        lon2 = pos2[0]
-        
-        diff = abs(lon1 - lon2)
-        if diff > 180:
-            diff = 360 - diff
+        try:
+            pos1, _ = se.calc_ut(jd_utc, planet1_id)
+            pos2, _ = se.calc_ut(jd_utc, planet2_id)
             
-        if abs(diff - aspect_info["degree"]) <= aspect_info["orb"]:
-            found_aspects.append({
-                "date": str(current_date),
-                "planet1": planet1_name,
-                "planet2": planet2_name,
-                "aspect": aspect_name,
-                "orb": round(abs(diff - aspect_info["degree"]), 2)
-            })
-        
-        current_date += delta
+            lon1 = pos1[0] % 360
+            lon2 = pos2[0] % 360
 
-    print("סריקה הסתיימה.")
-    return found_aspects
+            diff = abs(lon1 - lon2)
+            if diff > 180:
+                diff = 360 - diff
 
-# --- קוד לבדיקת הפונקציה ---
-if __name__ == "__main__":
-    # הגדרת טווח קצר לבדיקות מהירות
-    start_date_short = date(2023, 1, 1)
-    end_date_short = date(2025, 1, 1)
+            if abs(diff - target_degree) <= orb:
+                results.append({
+                    "date": str(current_date),
+                    "planet1": planet1_name,
+                    "planet2": planet2_name,
+                    "aspect": aspect_name,
+                    "actual_difference": round(diff, 2),
+                    "orb": round(abs(diff - target_degree), 2)
+                })
+        except Exception as e:
+            print(f"שגיאה בחישוב מיקום בתאריך {current_date}: {e}")
 
-    # בדיקה 1: מתי ראש תלי היה במזל טלה?
-    print("--- חיפוש: ראש תלי במזל טלה ---")
-    node_in_aries = find_historical_pattern("ראש תלי", "טלה", start_date_short, end_date_short)
-    if node_in_aries:
-        print(f"נמצאו {len(node_in_aries)} אירועים.")
-        print(json.dumps(node_in_aries[:5], indent=2, ensure_ascii=False) + "...")
-    else:
-        print("לא נמצאו אירועים בטווח התאריכים הקצר.")
-
-    print("\n" + "="*50 + "\n")
+        current_date = calculate_next_date_for_search(current_date, resolution)
     
-    # בדיקה 2: מתי יופיטר היה בצמידות לשבתאי? (התרחש בדצמבר 2020)
-    print("--- חיפוש: צמידות יופיטר-שבתאי בטווח קצר ---")
-    jupiter_saturn_conjunctions = find_historical_aspect("יופיטר", "שבתאי", "צמידות", start_date_short, end_date_short)
-    if jupiter_saturn_conjunctions:
-        print(f"נמצאו {len(jupiter_saturn_conjunctions)} אירועים.")
-        print(json.dumps(jupiter_saturn_conjunctions, indent=2, ensure_ascii=False))
-    else:
-        print("לא נמצאו אירועים בטווח התאריכים הקצר.")
+    print("חיפוש היסטורי היבטים הסתיים.")
+    return results
+
+def find_complex_constellation(
+    conditions: List[Dict[str, Any]], 
+    start_year: int, start_month: int, start_day: int,
+    end_year: int, end_month: int, end_day: int,
+    resolution: str = "daily"
+) -> List[Dict[str, Any]]:
+    """
+    מחפש תאריכים שבהם קבוצת כוכבים עומדת במספר תנאים בו-זמנית.
+    לדוגמה: שמש בטלה 15 מעלות, וירח בסרטן.
+    מקבל שנות התחלה וסיום בפורמט אסטרונומי (שלילי עבור שנים לפני הספירה).
+
+    בנוסף, הפונקציה כוללת אופטימיזציית חישוב:
+    אם החיפוש מערב כוכבים איטיים (כמו פלוטו) ברזולוציה יומית/שבועית על פני טווח ארוך,
+    תתקבל אזהרה לגבי יעילות.
+    """
+    se.set_ephe_path('ephe')
+    
+    results = []
+    
+    # יצירת אובייקטי date מתאריכי התחלה וסיום
+    start_dt = datetime(start_year, start_month, start_day)
+    end_dt = datetime(end_year, end_month, end_day)
+
+    current_date = start_dt.date() # שימוש באובייקט date
+
+    # --- אופטימיזציית חישוב: זיהוי כוכבים איטיים ---
+    involved_planets = [cond['planet_name'] for cond in conditions]
+    slowest_period_days = 0
+    are_slow_planets_involved = False
+    for planet_name in involved_planets:
+        period = PLANETARY_ORBITAL_PERIODS_DAYS.get(planet_name, 0) # 0 אם לא נמצא (לדוגמה: בתים)
+        if period > SLOW_PLANET_THRESHOLD_DAYS:
+            are_slow_planets_involved = True
+        if period > slowest_period_days:
+            slowest_period_days = period
+
+    # הערכת משך החיפוש הכולל בימים
+    total_search_days = (end_dt.date() - start_dt.date()).days # השתמש ב-date objects להפרש
+
+    optimization_warning = None
+    if are_slow_planets_involved:
+        # אם יש כוכבים איטיים והטווח ארוך מאוד והרזולוציה עדינה
+        # (לדוגמה, חיפוש יומי/שבועי מעל שנה-שנתיים כשלפחות כוכב אחד איטי מאוד)
+        if total_search_days > 365 * 2 and (resolution == "daily" or resolution == "weekly"):
+            optimization_warning = {
+                "type": "warning",
+                "message": (
+                    f"אזהרה: חיפוש תבנית זו מערב כוכבים איטיים (כמו {involved_planets[0] if are_slow_planets_involved else ''}). "
+                    f"חיפוש ברזולוציית '{resolution}' לאורך {total_search_days} ימים עלול להיות לא יעיל. "
+                    f"שקול רזולוציה 'חודשית' או 'שנתית' לחיפוש מהיר יותר."
+                )
+            }
+            results.append(optimization_warning) # הוסף את האזהרה לתוצאות (ניתן גם לזרוק חריגה או לשלוח בלוג)
+
+    print(f"מתחיל חיפוש מורכב עבור {len(conditions)} תנאים מ- {start_dt.strftime('%Y-%m-%d')} עד {end_dt.strftime('%Y-%m-%d')} ברזולוציית {resolution}...")
+
+    # כעת, נחזור על הלוגיקה המקורית לחיפוש תבניות מורכבות:
+    while current_date <= end_dt.date():
+        # se.utc_to_jd מקבל שנה, חודש, יום בנפרד (כולל שנים אסטרונומיות 0 או שליליות)
+        jd_utc = se.utc_to_jd(current_date.year, current_date.month, current_date.day, 0, 0, 0)[1]
+        
+        all_conditions_met = True
+        daily_positions = {} # נאסוף את כל המיקומים ליום זה
+        
+        for condition in conditions:
+            planet_name = condition.get('planet_name')
+            sign_name = condition.get('sign_name')
+            target_degree = condition.get('degree')
+
+            planet_id = PLANETS_HEBREW_MAP.get(planet_name)
+            if planet_id is None:
+                all_conditions_met = False
+                break # כוכב לא חוקי, דילוג על היום
+            
+            # ודא שהמזל קיים במילון טווחי המעלות
+            if sign_name not in SIGNS_HEBREW_MAP_DEGREE_RANGES:
+                all_conditions_met = False
+                break # מזל לא חוקי, דילוג על היום
+
+            sign_start_deg, sign_end_deg = SIGNS_HEBREW_MAP_DEGREE_RANGES[sign_name]
+
+            try:
+                planet_pos, _ = se.calc_ut(jd_utc, planet_id)
+                longitude = planet_pos[0] % 360
+
+                if not (sign_start_deg <= longitude < sign_end_deg):
+                    all_conditions_met = False
+                    break # התנאי לכוכב זה לא מתקיים
+                
+                degree_in_sign = int(longitude) % 30
+                if target_degree is not None and degree_in_sign != target_degree:
+                    all_conditions_met = False
+                    break # התנאי למעלה לא מתקיים
+
+                daily_positions[planet_name] = {
+                    "longitude": round(longitude, 2),
+                    "sign": sign_name,
+                    "degree_in_sign": degree_in_sign
+                }
+
+            except Exception as e:
+                print(f"שגיאה בחישוב מיקום {planet_name} בתאריך {current_date}: {e}")
+                all_conditions_met = False
+                break # שגיאה, דילוג על היום
+
+        if all_conditions_met:
+            results.append({
+                "date": str(current_date),
+                "planets_meeting_conditions": daily_positions
+            })
+
+        current_date = calculate_next_date_for_search(current_date, resolution)
+    
+    print("חיפוש מורכב הסתיים.")
+    return results
+
+
+if __name__ == "__main__":
+    # בדיקת פונקציות (מופעלות רק כשהקובץ מורץ ישירות)
+    
+    # בדיקת find_constellation_planet_in_sign
+    print("--- בדיקת find_constellation_planet_in_sign (שמש בטלה 15, 2023) ---")
+    results1 = find_constellation_planet_in_sign("שמש", "טלה", 2023, 3, 1, 2023, 4, 30, "daily", 15)
+    print(f"נמצאו {len(results1)} תאריכים עבור שמש בטלה 15: {results1}")
+
+    print("\n--- בדיקת find_constellation_planet_in_sign (שמש בטלה 15, 1563 לפנה''ס - 1562 לפנה''ס) ---")
+    # 1563 לפנה"ס היא שנה -1562 בפורמט אסטרונומי
+    # 1562 לפנה"ס היא שנה -1561 בפורמט אסטרונומי
+    results_bce_planet = find_constellation_planet_in_sign("שמש", "טלה", -1562, 3, 1, -1561, 4, 30, "daily", 15)
+    print(f"נמצאו {len(results_bce_planet)} תאריכים עבור שמש בטלה 15 (לפנה''ס): {results_bce_planet}")
+
+
+    # בדיקת find_constellation_aspect
+    print("\n--- בדיקת find_constellation_aspect (צמידות ירח-שמש, 2023) ---")
+    results2 = find_constellation_aspect("ירח", "שמש", "צמידות", 2023, 1, 1, 2023, 3, 1, "daily")
+    print(f"נמצאו {len(results2)} תאריכים עבור צמידות ירח-שמש: {results2}")
+
+    print("\n--- בדיקת find_constellation_aspect (צמידות ירח-שמש, 1 לפנה''ס - 1 לספירה) ---")
+    # 1 לפנה"ס היא שנה 0 בפורמט אסטרונומי
+    # 1 לספירה היא שנה 1 בפורמט אסטרונומי
+    results_bce_aspect = find_constellation_aspect("ירח", "שמש", "צמידות", 0, 1, 1, 1, 1, 1, "daily")
+    print(f"נמצאו {len(results_bce_aspect)} תאריכים עבור צמידות ירח-שמש (לפנה''ס): {results_bce_aspect}")
+
+
+    # בדיקת find_complex_constellation עם אופטימיזציה (כוכב איטי)
+    print("\n--- בדיקת find_complex_constellation (יופיטר במזל ספציפי, טווח ארוך, 2000-2005) ---")
+    complex_cond_slow = [
+        {"planet_name": "יופיטר", "sign_name": "שור", "degree": 1} # יופיטר כוכב איטי
+    ]
+    results_complex_slow = find_complex_constellation(complex_cond_slow, 2000, 1, 1, 2005, 1, 1, "daily")
+    print(f"נמצאו {len(results_complex_slow)} תאריכים עבור חיפוש מורכב (יופיטר):")
+    for r in results_complex_slow:
+        print(r)
+
+    print("\n--- בדיקת find_complex_constellation (שמש וירח במזל ספציפי, טווח קצר, 2024) ---")
+    complex_cond_fast = [
+        {"planet_name": "שמש", "sign_name": "דלי", "degree": 5},
+        {"planet_name": "ירח", "sign_name": "טלה", "degree": 10}
+    ]
+    results_complex_fast = find_complex_constellation(complex_cond_fast, 2024, 1, 1, 2024, 2, 28, "daily")
+    print(f"נמצאו {len(results_complex_fast)} תאריכים עבור חיפוש מורכב (שמש וירח):")
+    for r in results_complex_fast:
+        print(r)
+
+    print("\n--- בדיקת find_complex_constellation (שמש וירח במזל ספציפי, 1 לפנה''ס) ---")
+    # 1 לפנה"ס היא שנה 0 אסטרונומית
+    complex_cond_bce = [
+        {"planet_name": "שמש", "sign_name": "טלה", "degree": 15},
+        {"planet_name": "ירח", "sign_name": "מאזניים", "degree": 15}
+    ]
+    results_complex_bce = find_complex_constellation(complex_cond_bce, 0, 1, 1, 0, 12, 31, "daily")
+    print(f"נמצאו {len(results_complex_bce)} תאריכים עבור חיפוש מורכב (שמש וירח, לפנה''ס):")
+    for r in results_complex_bce:
+        print(r)
