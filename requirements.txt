@@ -1,5 +1,5 @@
-pyswisseph==2.10.3.1
+pyswisseph==2.8.0.post1
 Flask
 logging
 datetime
-gunicorn==22.0.0
+gunicorn
