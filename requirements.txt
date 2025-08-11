@@ -1,5 +1,4 @@
 swisseph
 Flask
 logging
-json
 datetime
