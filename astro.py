@@ -1,4 +1,4 @@
-import swisseph as se
+import pyswisseph as se
 from datetime import date, datetime
 from typing import Dict, Any, List, Optional
 import itertools
