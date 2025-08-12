@@ -53,7 +53,6 @@ def get_date_from_components(year: int, month: int, day: int) -> datetime:
         # The frontend should already send astronomical year for BCE.
         # If year 0 comes from frontend (representing 1 BCE), it should be handled internally.
         # For direct datetime creation, a dummy non-zero year is sometimes used with careful handling.
-        # For simplicity, if year is 0, we can temporarily convert it to 1 and treat it as 1 BCE.
         # However, for swisseph, 0 is valid.
         pass # The logic below will use the year directly.
 
@@ -210,6 +209,7 @@ def calculate_birth_chart(year: int, month: int, day: int, lat: float, long_geo:
     מחשב מפת לידה מלאה: מיקומי כוכבים, מיקומי בתים, ותבניות גאומטריות.
     מקבל שנה בפורמט אסטרונומי (שלילי עבור שנים לפני הספירה).
     מחזירה מילון מובנה הכולל את כל הנתונים.
+    **מעודכן**: כולל מהירויות כוכבים בפלט.
     """
     # se.utc_to_jd מקבל שנה כפי שהיא, כולל שליליות עבור שנים אסטרונומיות.
     # שנה 0 היא שנת 1 לפנה"ס. שנה -1 היא שנת 2 לפנה"ס וכן הלאה.
@@ -237,8 +237,12 @@ def calculate_birth_chart(year: int, month: int, day: int, lat: float, long_geo:
     raw_planet_longitudes = {} # נשמור קווי אורך כדי להעביר לפונקציות זיהוי תבניות
     for planet_name_hebrew, planet_id in PLANETS_HEBREW_MAP.items():
         try:
-            position, _ = se.calc_ut(jd_utc, planet_id)
+            # שינוי: קוראים עם se.SWE_FLG_SPEED כדי לקבל גם מהירות
+            position, _ = se.calc_ut(jd_utc, planet_id, se.SWE_FLG_SPEED)
+            
             longitude = position[0] % 360
+            speed = position[3] # מהירות הכוכב במעלות ליום
+            
             raw_planet_longitudes[planet_name_hebrew] = longitude # שמירת קו האורך הגולמי
 
             sign = get_sign_from_longitude(longitude)
@@ -247,7 +251,9 @@ def calculate_birth_chart(year: int, month: int, day: int, lat: float, long_geo:
             chart_data["planet_positions"][planet_name_hebrew] = {
                 "longitude": round(longitude, 2),
                 "sign": sign,
-                "degree_in_sign": degree_in_sign
+                "degree_in_sign": degree_in_sign,
+                "speed": round(speed, 4), # הוספה של מהירות הכוכב
+                "is_retrograde": speed < 0 # סימון נסיגה אם המהירות שלילית
             }
         except Exception as e:
             # print(f"שגיאה בחישוב מיקום {planet_name_hebrew} בתאריך {year}/{month}/{day}: {e}") # לוגינג של שגיאות
@@ -316,4 +322,3 @@ if __name__ == "__main__":
     # 1 לפנה"ס היא שנה 0 בפורמט אסטרונומי
     chart_1bce = calculate_birth_chart(0, 1, 1, test_lat, test_long)
     print(json.dumps(chart_1bce, indent=2, ensure_ascii=False))
-

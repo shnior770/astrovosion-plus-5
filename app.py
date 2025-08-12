@@ -1,16 +1,20 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 from datetime import datetime
 import os
 import sys
-import time # ייבוא ספריית time למדידת ביצועים
-import json # ***תיקון: ייבוא מודול json***
+import time
+import json
+import csv # ייבוא מודול csv
+from io import StringIO # לייצוא ל-CSV בזיכרון
 
 # ודא שהסקריפט יוכל למצוא את הקבצים
 sys.path.append('.')
 
 # ייבוא הפונקציות המעודכנות מהמודולים שלך
 try:
-    from astro import calculate_birth_chart, GEOMETRIC_PATTERN_ORB
+    from astro import calculate_birth_chart, GEOMETRIC_PATTERN_ORB, PLANETS_HEBREW_MAP
+    # historical_pattern_finder.py ו-sine_graph_generator.py לא סופקו, לכן נניח שייבואן תקין.
+    # אם הם לא קיימים/נחוצים לפונקציונליות הבסיסית, ניתן להסיר.
     from historical_pattern_finder import find_constellation_planet_in_sign, find_constellation_aspect, find_complex_constellation
     from sine_graph_generator import generate_sine_chart_data
 except ImportError as e:
@@ -44,6 +48,7 @@ def calculate():
     """
     מקבל נתוני תאריך (שנה, חודש, יום, ודגל is_bce), קו רוחב וקו אורך
     ומחשב מפת לידה/אירוע. מחזיר את התוצאה בפורמט JSON.
+    **מעודכן**: הפלט כעת כולל מהירויות כוכבים ותבניות גאומטריות מזוהות.
     """
     data = request.json
     year = data.get('year')
@@ -52,7 +57,7 @@ def calculate():
     is_bce = data.get('is_bce')
     lat = data.get('lat')
     long_geo = data.get('long')
-
+    
     # **חדש/משופר: בדיקות קלט חזקות יותר**
     if any(val is None for val in [year, month, day, is_bce, lat, long_geo]):
         return jsonify({"error": "נתונים חסרים: ודא ששנה, חודש, יום, לפני הספירה, קו רוחב וקו אורך סופקו."}), 400
@@ -81,6 +86,54 @@ def calculate():
         return jsonify(response_data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# נקודת קצה חדשה לייצוא נתוני מפה/חיפוש ל-CSV/JSON
+@app.route('/export_chart_data', methods=['POST'])
+def export_chart_data():
+    """
+    מקבל נתוני מפה/חיפוש (כמו לנקודת הקצה /calculate או /find_pattern)
+    ומחזיר אותם בפורמט CSV או JSON.
+    """
+    data = request.json
+    export_format = request.args.get('format', 'json').lower() # קבלת פורמט מפראמטר URL
+
+    if not data:
+        return jsonify({"error": "יש לספק נתונים לייצוא."}), 400
+
+    if export_format == 'json':
+        # מחזיר את הנתונים כ-JSON רגיל
+        return jsonify(data)
+    elif export_format == 'csv':
+        # ננסה לייצא נתוני כוכבים כטבלה CSV
+        # נניח שהנתונים ב-'chart' -> 'planet_positions'
+        # נדרשת לוגיקה חכמה יותר אם רוצים לייצא סוגי נתונים שונים (חיפושים, תבניות)
+        if 'chart' in data and 'planet_positions' in data['chart']:
+            output = StringIO()
+            writer = csv.writer(output)
+
+            # כותב כותרות: Planet, Longitude, Sign, Degree in Sign, Speed, Is Retrograde
+            headers = ['Planet', 'Longitude', 'Sign', 'Degree_in_Sign', 'Speed', 'Is_Retrograde']
+            writer.writerow(headers)
+
+            # כותב שורות עבור כל כוכב
+            for planet_name, details in data['chart']['planet_positions'].items():
+                if 'error' not in details: # דלג על כוכבים עם שגיאות
+                    row = [
+                        planet_name,
+                        details.get('longitude'),
+                        details.get('sign'),
+                        details.get('degree_in_sign'),
+                        details.get('speed'),
+                        details.get('is_retrograde')
+                    ]
+                    writer.writerow(row)
+            
+            return Response(output.getvalue(), mimetype='text/csv', headers={"Content-disposition": "attachment; filename=chart_data.csv"})
+        else:
+            return jsonify({"error": "פורמט CSV נתמך כרגע רק עבור נתוני מפה עם מיקומי כוכבים."}), 400
+    else:
+        return jsonify({"error": "פורמט ייצוא לא נתמך. פורמטים נתמכים: 'json', 'csv'."}), 400
+
 
 # נקודת קצה לביצוע חיפוש כוכב במזל (קריאה לפונקציה find_constellation_planet_in_sign)
 @app.route('/find_pattern', methods=['POST'])
@@ -325,3 +378,4 @@ def log_test_result():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
