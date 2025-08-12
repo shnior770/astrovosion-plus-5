@@ -24,4 +24,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY . .
 
 # פקודת ההפעלה של היישום באמצעות Gunicorn
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:$PORT"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]
