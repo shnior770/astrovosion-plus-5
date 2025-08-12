@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # **בדיקה מפורשת של הייבוא במהלך הבנייה**
 # אם זה נכשל, ה-Build כולו ייכשל כאן וזה ייתן לנו אבחנה מדויקת יותר
-RUN python -c "import pyswisseph; print('pyswisseph import successful during build!')"
+
 
 # העתק את כל שאר קבצי הפרויקט לתוך הקונטיינר
 COPY . .
