@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>כלי בדיקת API של AstroVision</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            direction: rtl; /* יישור מימין לשמאל לעברית */
+            text-align: right; /* יישור טקסט מימין */
+            background-color: #f3f4f6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background-color: #ffffff;
+            border-radius: 0.75rem; /* rounded-lg */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-lg */
+            padding: 2rem;
+        }
+        h1, h2 {
+            color: #1f2937; /* gray-900 */
+        }
+        .input-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .input-field {
+            flex: 1 1 200px; /* גמיש עם רוחב מינימלי */
+        }
+        label {
+            display: block;
+            font-weight: 500;
+            color: #374151; /* gray-700 */
+            margin-bottom: 0.25rem;
+        }
+        input[type="number"],
+        input[type="text"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db; /* gray-300 */
+            border-radius: 0.375rem; /* rounded-md */
+            font-size: 0.875rem; /* text-sm */
+            color: #1f2937; /* gray-900 */
+            background-color: #f9fafb; /* gray-50 */
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+        input[type="number"]:focus,
+        input[type="text"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #2563eb; /* blue-600 */
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25); /* focus:ring */
+        }
+        input[type="checkbox"] {
+            margin-left: 0.5rem; /* מרווח קטן אחרי הצ'קבוקס */
+        }
+        .btn {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem; /* rounded-lg */
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            background-color: #2563eb; /* blue-600 */
+            color: #ffffff;
+            border: none;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* shadow-sm */
+        }
+        .btn:hover {
+            background-color: #1d4ed8; /* blue-700 */
+        }
+        .btn:active {
+            background-color: #1e40af; /* blue-800 */
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+        .response-area {
+            background-color: #e2e8f0; /* gray-200 */
+            border-radius: 0.375rem; /* rounded-md */
+            padding: 1rem;
+            margin-top: 1rem;
+            font-size: 0.875rem;
+            white-space: pre-wrap; /* לשמור על פורמט ה-JSON */
+            word-wrap: break-word; /* לשבור שורות ארוכות */
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #cbd5e0; /* gray-300 */
+            color: #1f2937; /* gray-900 */
+        }
+        .response-area.error {
+            background-color: #fee2e2; /* red-100 */
+            border-color: #ef4444; /* red-500 */
+            color: #dc2626; /* red-600 */
+        }
+        .section-divider {
+            border-top: 1px solid #e5e7eb; /* gray-200 */
+            margin: 2rem 0;
+        }
+        /* הסתרת חיצים מ-input type="number" */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8 flex flex-col items-center">
+    <div class="container bg-white rounded-lg shadow-lg p-8">
+        <h1 class="text-3xl font-bold mb-6 text-center">כלי בדיקת API של AstroVision</h1>
+
+        <!-- API Base URL Configuration -->
+        <div class="mb-8 p-4 bg-blue-50 rounded-md border border-blue-200">
+            <label for="apiBaseUrl" class="block text-sm font-medium text-blue-800 mb-2">כתובת בסיסית של ה-API (Cloud Run Service URL):</label>
+            <input type="text" id="apiBaseUrl" class="w-full p-2 border border-blue-300 rounded-md bg-blue-100 text-blue-900" value="http://127.0.0.1:5000" placeholder="הכנס את ה-URL של שירות ה-Cloud Run שלך כאן">
+            <p class="text-xs text-blue-700 mt-1">ודא שהשרת רץ על כתובת זו. לדוגמה: `http://127.0.0.1:5000` (לפיתוח מקומי) או `https://astro-api-service-XXXXXXXXXXXX.us-central1.run.app` (לפריסת Cloud Run).</p>
+        </div>
+
+        <!-- 1. חישוב מפת לידה / אירוע (/calculate) -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800">1. חישוב מפת לידה / אירוע (<span class="font-mono">/calculate</span>)</h2>
+            <div class="input-group">
+                <div class="input-field">
+                    <label for="calc_year">שנה:</label>
+                    <input type="number" id="calc_year" value="1990">
+                </div>
+                <div class="input-field">
+                    <label for="calc_month">חודש:</label>
+                    <input type="number" id="calc_month" value="5">
+                </div>
+                <div class="input-field">
+                    <label for="calc_day">יום:</label>
+                    <input type="number" id="calc_day" value="15">
+                </div>
+                <div class="input-field">
+                    <label for="calc_hour">שעה:</label>
+                    <input type="number" id="calc_hour" value="12">
+                </div>
+                <div class="input-field">
+                    <label for="calc_minute">דקה:</label>
+                    <input type="number" id="calc_minute" value="30">
+                </div>
+                <div class="input-field">
+                    <label for="calc_second">שנייה:</label>
+                    <input type="number" id="calc_second" value="0">
+                </div>
+                <div class="input-field flex items-center justify-end">
+                    <label for="calc_is_bce" class="mb-0">לפני הספירה (BCE):</label>
+                    <input type="checkbox" id="calc_is_bce" class="w-auto ml-2">
+                </div>
+                <div class="input-field">
+                    <label for="calc_lat">קו רוחב:</label>
+                    <input type="text" id="calc_lat" value="31.7683">
+                </div>
+                <div class="input-field">
+                    <label for="calc_long">קו אורך:</label>
+                    <input type="text" id="calc_long" value="35.2137">
+                </div>
+            </div>
+            <button class="btn w-full" onclick="testCalculate()">בדוק API זה</button>
+            <div id="calculate_response" class="response-area"></div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <!-- 2. חיפוש כוכב במזל (/find_pattern) -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800">2. חיפוש כוכב במזל (<span class="font-mono">/find_pattern</span>)</h2>
+            <div class="input-group">
+                <div class="input-field">
+                    <label for="pattern_planet">כוכב:</label>
+                    <select id="pattern_planet">
+                        <option value="שמש" selected>שמש</option>
+                        <option value="ירח">ירח</option>
+                        <option value="מרקורי">מרקורי</option>
+                        <option value="ונוס">ונוס</option>
+                        <option value="מאדים">מאדים</option>
+                        <option value="יופיטר">יופיטר</option>
+                        <option value="שבתאי">שבתאי</option>
+                        <option value="אורנוס">אורנוס</option>
+                        <option value="נפטון">נפטון</option>
+                        <option value="פלוטו">פלוטו</option>
+                        <option value="ראש תלי">ראש תלי</option>
+                        <option value="זנב תלי">זנב תלי</option>
+                    </select>
+                </div>
+                <div class="input-field">
+                    <label for="pattern_sign">מזל:</label>
+                    <select id="pattern_sign">
+                        <option value="טלה" selected>טלה</option>
+                        <option value="שור">שור</option>
+                        <option value="תאומים">תאומים</option>
+                        <option value="סרטן">סרטן</option>
+                        <option value="אריה">אריה</option>
+                        <option value="בתולה">בתולה</option>
+                        <option value="מאזניים">מאזניים</option>
+                        <option value="עקרב">עקרב</option>
+                        <option value="קשת">קשת</option>
+                        <option value="גדי">גדי</option>
+                        <option value="דלי">דלי</option>
+                        <option value="דגים">דגים</option>
+                    </select>
+                </div>
+                <div class="input-field">
+                    <label for="pattern_degree">מעלה (אופציונלי):</label>
+                    <input type="number" id="pattern_degree" value="">
+                </div>
+                <div class="input-field">
+                    <label for="pattern_start_year">שנת התחלה:</label>
+                    <input type="number" id="pattern_start_year" value="2023">
+                </div>
+                <div class="input-field">
+                    <label for="pattern_start_month">חודש התחלה:</label>
+                    <input type="number" id="pattern_start_month" value="1">
+                </div>
+                <div class="input-field">
+                    <label for="pattern_start_day">יום התחלה:</label>
+                    <input type="number" id="pattern_start_day" value="1">
+                </div>
+                <div class="input-field flex items-center justify-end">
+                    <label for="pattern_is_start_bce" class="mb-0">התחלה לפני הספירה:</label>
+                    <input type="checkbox" id="pattern_is_start_bce" class="w-auto ml-2">
+                </div>
+                <div class="input-field">
+                    <label for="pattern_end_year">שנת סיום:</label>
+                    <input type="number" id="pattern_end_year" value="2024">
+                </div>
+                <div class="input-field">
+                    <label for="pattern_end_month">חודש סיום:</label>
+                    <input type="number" id="pattern_end_month" value="1">
+                </div>
+                <div class="input-field">
+                    <label for="pattern_end_day">יום סיום:</label>
+                    <input type="number" id="pattern_end_day" value="1">
+                </div>
+                <div class="input-field flex items-center justify-end">
+                    <label for="pattern_is_end_bce" class="mb-0">סיום לפני הספירה:</label>
+                    <input type="checkbox" id="pattern_is_end_bce" class="w-auto ml-2">
+                </div>
+                <div class="input-field">
+                    <label for="pattern_resolution">רזולוציה:</label>
+                    <select id="pattern_resolution">
+                        <option value="daily" selected>Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                    </select>
+                </div>
+                <div class="input-field">
+                    <label for="pattern_max_results">מקסימום תוצאות (אופציונלי):</label>
+                    <input type="number" id="pattern_max_results" value="50">
+                </div>
+            </div>
+            <button class="btn w-full" onclick="testFindPattern()">בדוק API זה</button>
+            <div id="find_pattern_response" class="response-area"></div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <!-- 3. חיפוש היבטים היסטוריים (/find_aspect) -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800">3. חיפוש היבטים היסטוריים (<span class="font-mono">/find_aspect</span>)</h2>
+            <div class="input-group">
+                <div class="input-field">
+                    <label for="aspect_planet1">כוכב 1:</label>
+                    <select id="aspect_planet1">
+                        <option value="שמש" selected>שמש</option>
+                        <option value="ירח">ירח</option>
+                        <option value="מרקורי">מרקורי</option>
+                        <option value="ונוס">ונוס</option>
+                        <option value="מאדים">מאדים</option>
+                        <option value="יופיטר">יופיטר</option>
+                        <option value="שבתאי">שבתאי</option>
+                        <option value="אורנוס">אורנוס</option>
+                        <option value="נפטון">נפטון</option>
+                        <option value="פלוטו">פלוטו</option>
+                        <option value="ראש תלי">ראש תלי</option>
+                        <option value="זנב תלי">זנב תלי</option>
+                    </select>
+                </div>
+                <div class="input-field">
+                    <label for="aspect_planet2">כוכב 2:</label>
+                    <select id="aspect_planet2">
+                        <option value="ירח" selected>ירח</option>
+                        <option value="שמש">שמש</option>
+                        <option value="מרקורי">מרקורי</option>
+                        <option value="ונוס">ונוס</option>
+                        <option value="מאדים">מאדים</option>
+                        <option value="יופיטר">יופיטר</option>
+                        <option value="שבתאי">שבתאי</option>
+                        <option value="אורנוס">אורנוס</option>
+                        <option value="נפטון">נפטון</option>
+                        <option value="פלוטו">פלוטו</option>
+                        <option value="ראש תלי">ראש תלי</option>
+                        <option value="זנב תלי">זנב תלי</option>
+                    </select>
+                </div>
+                <div class="input-field">
+                    <label for="aspect_name">היבט:</label>
+                    <select id="aspect_name">
+                        <option value="צמידות" selected>צמידות</option>
+                        <option value="היפוך">היפוך</option>
+                        <option value="טרין">טרין</option>
+                        <option value="סקסטיל">סקסטיל</option>
+                        <option value="ריבוע">ריבוע</option>
+                        <option value="קווינקונקס">קווינקונקס</option>
+                    </select>
+                </div>
+                <div class="input-field">
+                    <label for="aspect_start_year">שנת התחלה:</label>
+                    <input type="number" id="aspect_start_year" value="2023">
+                </div>
+                <div class="input-field">
+                    <label for="aspect_start_month">חודש התחלה:</label>
+                    <input type="number" id="aspect_start_month" value="1">
+                </div>
+                <div class="input-field">
+                    <label for="aspect_start_day">יום התחלה:</label>
+                    <input type="number" id="aspect_start_day" value="1">
+                </div>
+                <div class="input-field flex items-center justify-end">
+                    <label for="aspect_is_start_bce" class="mb-0">התחלה לפני הספירה:</label>
+                    <input type="checkbox" id="aspect_is_start_bce" class="w-auto ml-2">
+                </div>
+                <div class="input-field">
+                    <label for="aspect_end_year">שנת סיום:</label>
+                    <input type="number" id="aspect_end_year" value="2024">
+                </div>
+                <div class="input-field">
+                    <label for="aspect_end_month">חודש סיום:</label>
+                    <input type="number" id="aspect_end_month" value="1">
+                </div>
+                <div class="input-field">
+                    <label for="aspect_end_day">יום סיום:</label>
+                    <input type="number" id="aspect_end_day" value="1">
+                </div>
+                <div class="input-field flex items-center justify-end">
+                    <label for="aspect_is_end_bce" class="mb-0">סיום לפני הספירה:</label>
+                    <input type="checkbox" id="aspect_is_end_bce" class="w-auto ml-2">
+                </div>
+                <div class="input-field">
+                    <label for="aspect_resolution">רזולוציה:</label>
+                    <select id="aspect_resolution">
+                        <option value="daily" selected>Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                    </select>
+                </div>
+                <div class="input-field">
+                    <label for="aspect_max_results">מקסימום תוצאות (אופציונלי):</label>
+                    <input type="number" id="aspect_max_results" value="50">
+                </div>
+            </div>
+            <button class="btn w-full" onclick="testFindAspect()">בדוק API זה</button>
+            <div id="find_aspect_response" class="response-area"></div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <!-- 4. חיפוש קונסטלציה מורכבת (/find_complex_constellation) -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800">4. חיפוש קונסטלציה מורכבת (<span class="font-mono">/find_complex_constellation</span>)</h2>
+            <p class="text-sm text-gray-600 mb-2">ערוך את תנאי הקונסטלציה כ-JSON בתיבת הטקסט.</p>
+            <div class="input-group">
+                <div class="input-field w-full">
+                    <label for="complex_conditions">תנאים (JSON Array):</label>
+                    <textarea id="complex_conditions" rows="6" class="w-full">
+[
+    {"planet_name": "שמש", "sign_name": "דלי", "degree": 5},
+    {"planet_name": "ירח", "sign_name": "טלה", "degree": 10}
+]
+                    </textarea>
+                </div>
+                <div class="input-field">
+                    <label for="complex_start_year">שנת התחלה:</label>
+                    <input type="number" id="complex_start_year" value="2024">
+                </div>
+                <div class="input-field">
+                    <label for="complex_start_month">חודש התחלה:</label>
+                    <input type="number" id="complex_start_month" value="1">
+                </div>
+                <div class="input-field">
+                    <label for="complex_start_day">יום התחלה:</label>
+                    <input type="number" id="complex_start_day" value="1">
+                </div>
+                <div class="input-field flex items-center justify-end">
+                    <label for="complex_is_start_bce" class="mb-0">התחלה לפני הספירה:</label>
+                    <input type="checkbox" id="complex_is_start_bce" class="w-auto ml-2">
+                </div>
+                <div class="input-field">
+                    <label for="complex_end_year">שנת סיום:</label>
+                    <input type="number" id="complex_end_year" value="2024">
+                </div>
+                <div class="input-field">
+                    <label for="complex_end_month">חודש סיום:</label>
+                    <input type="number" id="complex_end_month" value="2">
+                </div>
+                <div class="input-field">
+                    <label for="complex_end_day">יום סיום:</label>
+                    <input type="number" id="complex_end_day" value="28">
+                </div>
+                <div class="input-field flex items-center justify-end">
+                    <label for="complex_is_end_bce" class="mb-0">סיום לפני הספירה:</label>
+                    <input type="checkbox" id="complex_is_end_bce" class="w-auto ml-2">
+                </div>
+                <div class="input-field">
+                    <label for="complex_resolution">רזולוציה:</label>
+                    <select id="complex_resolution">
+                        <option value="daily" selected>Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                    </select>
+                </div>
+                <div class="input-field">
+                    <label for="complex_max_results">מקסימום תוצאות (אופציונלי):</label>
+                    <input type="number" id="complex_max_results" value="50">
+                </div>
+            </div>
+            <button class="btn w-full" onclick="testFindComplexConstellation()">בדוק API זה</button>
+            <div id="find_complex_constellation_response" class="response-area"></div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <!-- 5. חישוב נתונים לתרשים סינוסי / גלי (/generate_sine_chart_data) -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800">5. חישוב נתונים לתרשים סינוסי / גלי (<span class="font-mono">/generate_sine_chart_data</span>)</h2>
+            <p class="text-sm text-gray-600 mb-2">בחר כוכבים, היבטים ותבניות שייכללו בגרף.</p>
+            <div class="input-group">
+                <div class="input-field w-full">
+                    <label for="sine_planet_names">כוכבים (בחר מספר):</label>
+                    <select id="sine_planet_names" multiple size="5" class="w-full h-auto">
+                        <option value="שמש" selected>שמש</option>
+                        <option value="ירח" selected>ירח</option>
+                        <option value="מאדים">מאדים</option>
+                        <option value="מרקורי">מרקורי</option>
+                        <option value="ונוס">ונוס</option>
+                        <option value="יופיטר">יופיטר</option>
+                        <option value="שבתאי">שבתאי</option>
+                        <option value="אורנוס">אורנוס</option>
+                        <option value="נפטון">נפטון</option>
+                        <option value="פלוטו">פלוטו</option>
+                        <option value="ראש תלי">ראש תלי</option>
+                        <option value="זנב תלי">זנב תלי</option>
+                    </select>
+                </div>
+                <div class="input-field w-full">
+                    <label for="sine_aspects_to_find">היבטים לזיהוי:</label>
+                    <select id="sine_aspects_to_find" multiple size="5" class="w-full h-auto">
+                        <option value="צמידות" selected>צמידות</option>
+                        <option value="היפוך" selected>היפוך</option>
+                        <option value="טרין">טרין</option>
+                        <option value="סקסטיל">סקסטיל</option>
+                        <option value="ריבוע">ריבוע</option>
+                        <option value="קווינקונקס">קווינקונקס</option>
+                    </select>
+                </div>
+                <div class="input-field w-full">
+                    <label for="sine_patterns_to_find">תבניות לזיהוי:</label>
+                    <select id="sine_patterns_to_find" multiple size="2" class="w-full h-auto">
+                        <option value="Grand Trine">Grand Trine</option>
+                        <option value="Star of David">Star of David</option>
+                    </select>
+                </div>
+                <div class="input-field">
+                    <label for="sine_start_year">שנת התחלה:</label>
+                    <input type="number" id="sine_start_year" value="2024">
+                </div>
+                <div class="input-field">
+                    <label for="sine_start_month">חודש התחלה:</label>
+                    <input type="number" id="sine_start_month" value="1">
+                </div>
+                <div class="input-field">
+                    <label for="sine_start_day">יום התחלה:</label>
+                    <input type="number" id="sine_start_day" value="1">
+                </div>
+                <div class="input-field flex items-center justify-end">
+                    <label for="sine_is_start_bce" class="mb-0">התחלה לפני הספירה:</label>
+                    <input type="checkbox" id="sine_is_start_bce" class="w-auto ml-2">
+                </div>
+                <div class="input-field">
+                    <label for="sine_end_year">שנת סיום:</label>
+                    <input type="number" id="sine_end_year" value="2024">
+                </div>
+                <div class="input-field">
+                    <label for="sine_end_month">חודש סיום:</label>
+                    <input type="number" id="sine_end_month" value="2">
+                </div>
+                <div class="input-field">
+                    <label for="sine_end_day">יום סיום:</label>
+                    <input type="number" id="sine_end_day" value="28">
+                </div>
+                <div class="input-field flex items-center justify-end">
+                    <label for="sine_is_end_bce" class="mb-0">סיום לפני הספירה:</label>
+                    <input type="checkbox" id="sine_is_end_bce" class="w-auto ml-2">
+                </div>
+                <div class="input-field">
+                    <label for="sine_resolution">רזולוציה:</label>
+                    <select id="sine_resolution">
+                        <option value="daily" selected>Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn w-full" onclick="testGenerateSineChartData()">בדוק API זה</button>
+            <div id="generate_sine_chart_data_response" class="response-area"></div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <!-- 6. ייצוא נתונים (/export_chart_data) -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800">6. ייצוא נתונים (<span class="font-mono">/export_chart_data</span>)</h2>
+            <p class="text-sm text-gray-600 mb-2">ייצא את נתוני מפת הלידה האחרונים שחושבו (מנקודת הקצה /calculate) או ערוך JSON אחר.</p>
+            <div class="input-group">
+                <div class="input-field">
+                    <label for="export_format">פורמט ייצוא:</label>
+                    <select id="export_format">
+                        <option value="json" selected>JSON</option>
+                        <option value="csv">CSV (כוכבים בלבד)</option>
+                    </select>
+                </div>
+                <div class="input-field w-full">
+                    <label for="export_data_json">נתונים לייצוא (JSON):</label>
+                    <textarea id="export_data_json" rows="8" class="w-full">
+{
+    "chart": {
+        "date": "15/5/1990",
+        "latitude": 31.7683,
+        "longitude": 35.2137,
+        "planet_positions": {
+            "שמש": {"longitude": 54.2, "sign": "שור", "degree_in_sign": 24, "speed": 1.01, "is_retrograde": false, "house": 2},
+            "ירח": {"longitude": 122.5, "sign": "אריה", "degree_in_sign": 2, "speed": 13.5, "is_retrograde": false, "house": 6}
+        },
+        "house_positions": {},
+        "all_aspects": [],
+        "detected_patterns": []
+    },
+    "duration_ms": 123.45,
+    "geometric_pattern_orb": 5
+}
+                    </textarea>
+                </div>
+            </div>
+            <button class="btn w-full" onclick="testExportChartData()">ייצא נתונים</button>
+            <div id="export_chart_data_response" class="response-area"></div>
+        </div>
+    </div>
+
+    <script>
+        const apiBaseUrlInput = document.getElementById('apiBaseUrl');
+
+        // פונקציית עזר להצגת תוצאות
+        function displayResult(elementId, data, isError = false) {
+            const responseArea = document.getElementById(elementId);
+            responseArea.classList.remove('error');
+            if (isError) {
+                responseArea.classList.add('error');
+            }
+            responseArea.textContent = JSON.stringify(data, null, 2);
+        }
+
+        // פונקציית עזר לטיפול בקריאות API
+        async function callApi(endpoint, data, resultElementId, method = 'POST', queryParams = '') {
+            const apiBaseUrl = apiBaseUrlInput.value;
+            const url = `${apiBaseUrl}${endpoint}${queryParams}`;
+            
+            displayResult(resultElementId, { status: 'טוען...', timestamp: new Date().toISOString() });
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                });
+
+                if (response.headers.get('Content-Type')?.includes('text/csv')) {
+                    // Handle CSV download
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = response.headers.get('Content-Disposition')?.split('filename=')[1] || 'chart_data.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                    displayResult(resultElementId, { status: 'קובץ CSV הורד בהצלחה!' });
+                } else {
+                    const result = await response.json();
+                    if (!response.ok) {
+                        displayResult(resultElementId, result, true); // Display error
+                    } else {
+                        displayResult(resultElementId, result);
+                    }
+                }
+            } catch (error) {
+                console.error('API call failed:', error);
+                displayResult(resultElementId, { 
+                    error: 'שגיאת רשת או תקשורת API.', 
+                    errorCode: 'NETWORK_ERROR',
+                    details: { message: error.message }
+                }, true);
+            }
+        }
+
+        // --- פונקציות בדיקה לכל נקודת קצה ---
+
+        // /calculate
+        function testCalculate() {
+            const data = {
+                year: parseInt(document.getElementById('calc_year').value),
+                month: parseInt(document.getElementById('calc_month').value),
+                day: parseInt(document.getElementById('calc_day').value),
+                hour: parseInt(document.getElementById('calc_hour').value),
+                minute: parseInt(document.getElementById('calc_minute').value),
+                second: parseInt(document.getElementById('calc_second').value),
+                is_bce: document.getElementById('calc_is_bce').checked,
+                lat: parseFloat(document.getElementById('calc_lat').value),
+                long: parseFloat(document.getElementById('calc_long').value)
+            };
+            callApi('/calculate', data, 'calculate_response');
+        }
+
+        // /find_pattern
+        function testFindPattern() {
+            const data = {
+                planet_name: document.getElementById('pattern_planet').value,
+                sign_name: document.getElementById('pattern_sign').value,
+                degree: document.getElementById('pattern_degree').value ? parseInt(document.getElementById('pattern_degree').value) : null,
+                start_year: parseInt(document.getElementById('pattern_start_year').value),
+                start_month: parseInt(document.getElementById('pattern_start_month').value),
+                start_day: parseInt(document.getElementById('pattern_start_day').value),
+                is_start_bce: document.getElementById('pattern_is_start_bce').checked,
+                end_year: parseInt(document.getElementById('pattern_end_year').value),
+                end_month: parseInt(document.getElementById('pattern_end_month').value),
+                end_day: parseInt(document.getElementById('pattern_end_day').value),
+                is_end_bce: document.getElementById('pattern_is_end_bce').checked,
+                resolution: document.getElementById('pattern_resolution').value,
+                max_results: document.getElementById('pattern_max_results').value ? parseInt(document.getElementById('pattern_max_results').value) : null
+            };
+            callApi('/find_pattern', data, 'find_pattern_response');
+        }
+
+        // /find_aspect
+        function testFindAspect() {
+            const data = {
+                planet1_name: document.getElementById('aspect_planet1').value,
+                planet2_name: document.getElementById('aspect_planet2').value,
+                aspect_name: document.getElementById('aspect_name').value,
+                start_year: parseInt(document.getElementById('aspect_start_year').value),
+                start_month: parseInt(document.getElementById('aspect_start_month').value),
+                start_day: parseInt(document.getElementById('aspect_start_day').value),
+                is_start_bce: document.getElementById('aspect_is_start_bce').checked,
+                end_year: parseInt(document.getElementById('aspect_end_year').value),
+                end_month: parseInt(document.getElementById('aspect_end_month').value),
+                end_day: parseInt(document.getElementById('aspect_end_day').value),
+                is_end_bce: document.getElementById('aspect_is_end_bce').checked,
+                resolution: document.getElementById('aspect_resolution').value,
+                max_results: document.getElementById('aspect_max_results').value ? parseInt(document.getElementById('aspect_max_results').value) : null
+            };
+            callApi('/find_aspect', data, 'find_aspect_response');
+        }
+
+        // /find_complex_constellation
+        function testFindComplexConstellation() {
+            const data = {
+                conditions: JSON.parse(document.getElementById('complex_conditions').value),
+                start_year: parseInt(document.getElementById('complex_start_year').value),
+                start_month: parseInt(document.getElementById('complex_start_month').value),
+                start_day: parseInt(document.getElementById('complex_start_day').value),
+                is_start_bce: document.getElementById('complex_is_start_bce').checked,
+                end_year: parseInt(document.getElementById('complex_end_year').value),
+                end_month: parseInt(document.getElementById('complex_end_month').value),
+                end_day: parseInt(document.getElementById('complex_end_day').value),
+                is_end_bce: document.getElementById('complex_is_end_bce').checked,
+                resolution: document.getElementById('complex_resolution').value,
+                max_results: document.getElementById('complex_max_results').value ? parseInt(document.getElementById('complex_max_results').value) : null
+            };
+            callApi('/find_complex_constellation', data, 'find_complex_constellation_response');
+        }
+
+        // /generate_sine_chart_data
+        function testGenerateSineChartData() {
+            const planetNamesSelect = document.getElementById('sine_planet_names');
+            const selectedPlanetNames = Array.from(planetNamesSelect.options)
+                                            .filter(option => option.selected)
+                                            .map(option => option.value);
+
+            const aspectsToFindSelect = document.getElementById('sine_aspects_to_find');
+            const selectedAspectsToFind = Array.from(aspectsToFindSelect.options)
+                                                .filter(option => option.selected)
+                                                .map(option => option.value);
+
+            const patternsToFindSelect = document.getElementById('sine_patterns_to_find');
+            const selectedPatternsToFind = Array.from(patternsToFindSelect.options)
+                                                .filter(option => option.selected)
+                                                .map(option => option.value);
+
+            const data = {
+                planet_names: selectedPlanetNames,
+                aspects_to_find: selectedAspectsToFind,
+                patterns_to_find: selectedPatternsToFind,
+                start_year: parseInt(document.getElementById('sine_start_year').value),
+                start_month: parseInt(document.getElementById('sine_start_month').value),
+                start_day: parseInt(document.getElementById('sine_start_day').value),
+                is_start_bce: document.getElementById('sine_is_start_bce').checked,
+                end_year: parseInt(document.getElementById('sine_end_year').value),
+                end_month: parseInt(document.getElementById('sine_end_month').value),
+                end_day: parseInt(document.getElementById('sine_end_day').value),
+                is_end_bce: document.getElementById('sine_is_end_bce').checked,
+                resolution: document.getElementById('sine_resolution').value
+            };
+            callApi('/generate_sine_chart_data', data, 'generate_sine_chart_data_response');
+        }
+
+        // /export_chart_data
+        function testExportChartData() {
+            const exportFormat = document.getElementById('export_format').value;
+            let dataToExport;
+            try {
+                dataToExport = JSON.parse(document.getElementById('export_data_json').value);
+            } catch (e) {
+                displayResult('export_chart_data_response', { 
+                    error: 'שגיאה בניתוח JSON: ודא שהקלט הוא JSON תקין.', 
+                    errorCode: 'INVALID_JSON_INPUT',
+                    details: { message: e.message }
+                }, true);
+                return;
+            }
+            callApi('/export_chart_data', dataToExport, 'export_chart_data_response', 'POST', `?format=${exportFormat}`);
+        }
+    </script>
+</body>
+</html>

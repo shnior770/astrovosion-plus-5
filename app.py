@@ -13,17 +13,29 @@ sys.path.append('.')
 # ייבוא הפונקציות המעודכנות מהמודולים שלך
 try:
     from astro import calculate_birth_chart, GEOMETRIC_PATTERN_ORB, PLANETS_HEBREW_MAP
-    # historical_pattern_finder.py ו-sine_graph_generator.py לא סופקו, לכן נניח שייבואן תקין.
-    # אם הם לא קיימים/נחוצים לפונקציונליות הבסיסית, ניתן להסיר.
     from historical_pattern_finder import find_constellation_planet_in_sign, find_constellation_aspect, find_complex_constellation
     from sine_graph_generator import generate_sine_chart_data
 except ImportError as e:
-    print(f"שגיאה בייבוא המודולים. ודא שכל הקבצים נמצאים בתיקייה הנכונה ובמבנה הנכון.")
-    print(f"שגיאה: {e}")
+    # שימוש בפורמט השגיאה החדש גם כאן
+    print(f"שגיאה בייבוא המודולים. ודא שכל הקבצים נמצאים בתיקייה הנכונה ובמבנה הנכון. שגיאה: {e}")
     sys.exit(1)
 
 
 app = Flask(__name__)
+
+# --- פונקציית עזר חדשה לטיפול בשגיאות בפורמט אחיד ---
+def create_error_response(message: str, error_code: str = "GENERIC_ERROR", status_code: int = 500, details: Optional[Dict[str, Any]] = None) -> Response:
+    """
+    יוצר תגובת שגיאה אחידה בפורמט JSON כפי שנדרש על ידי המפתח.
+    """
+    error_response = {
+        "error": message,
+        "errorCode": error_code
+    }
+    if details:
+        error_response["details"] = details
+    return jsonify(error_response), status_code
+
 
 # נקודת קצה לדף הבית (הדף היחיד שלנו)
 @app.route('/')
@@ -60,7 +72,10 @@ def calculate():
     
     # **חדש/משופר: בדיקות קלט חזקות יותר**
     if any(val is None for val in [year, month, day, is_bce, lat, long_geo]):
-        return jsonify({"error": "נתונים חסרים: ודא ששנה, חודש, יום, לפני הספירה, קו רוחב וקו אורך סופקו."}), 400
+        return create_error_response(
+            "נתונים חסרים: ודא ששנה, חודש, יום, לפני הספירה, קו רוחב וקו אורך סופקו.",
+            "MISSING_DATA", 400
+        )
     
     # ודא שהנתונים הם מהטיפוסים הנכונים
     try:
@@ -71,7 +86,10 @@ def calculate():
         lat = float(lat)
         long_geo = float(long_geo)
     except ValueError:
-        return jsonify({"error": "שגיאה: שנה, חודש, יום, קו רוחב או קו אורך אינם מספרים חוקיים."}), 400
+        return create_error_response(
+            "שגיאה: שנה, חודש, יום, קו רוחב או קו אורך אינם מספרים חוקיים.",
+            "INVALID_INPUT_TYPE", 400
+        )
 
     # המרת השנה לפורמט אסטרונומי לפני שליחה ל-astro.py
     astronomical_year = convert_year_to_astronomical(year, is_bce)
@@ -84,8 +102,18 @@ def calculate():
 
         response_data = {'chart': result, 'duration_ms': duration_ms, 'geometric_pattern_orb': GEOMETRIC_PATTERN_ORB}
         return jsonify(response_data)
+    except ValueError as e: # לכידת שגיאות ספציפיות כמו תאריך לא חוקי
+        return create_error_response(
+            f"שגיאה בעיבוד תאריך: {e}",
+            "INVALID_DATE_PROCESSING", 400,
+            details={"error_from_module": str(e)}
+        )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return create_error_response(
+            "שגיאת שרת פנימית במהלך החישוב.",
+            "INTERNAL_SERVER_ERROR", 500,
+            details={"error_message": str(e)}
+        )
 
 # נקודת קצה חדשה לייצוא נתוני מפה/חיפוש ל-CSV/JSON
 @app.route('/export_chart_data', methods=['POST'])
@@ -98,7 +126,10 @@ def export_chart_data():
     export_format = request.args.get('format', 'json').lower() # קבלת פורמט מפראמטר URL
 
     if not data:
-        return jsonify({"error": "יש לספק נתונים לייצוא."}), 400
+        return create_error_response(
+            "יש לספק נתונים לייצוא.",
+            "MISSING_DATA_FOR_EXPORT", 400
+        )
 
     if export_format == 'json':
         # מחזיר את הנתונים כ-JSON רגיל
@@ -111,8 +142,8 @@ def export_chart_data():
             output = StringIO()
             writer = csv.writer(output)
 
-            # כותב כותרות: Planet, Longitude, Sign, Degree in Sign, Speed, Is Retrograde
-            headers = ['Planet', 'Longitude', 'Sign', 'Degree_in_Sign', 'Speed', 'Is_Retrograde']
+            # כותב כותרות: Planet, Longitude, Sign, Degree in Sign, Speed, Is Retrograde, House
+            headers = ['Planet', 'Longitude', 'Sign', 'Degree_in_Sign', 'Speed', 'Is_Retrograde', 'House']
             writer.writerow(headers)
 
             # כותב שורות עבור כל כוכב
@@ -124,15 +155,22 @@ def export_chart_data():
                         details.get('sign'),
                         details.get('degree_in_sign'),
                         details.get('speed'),
-                        details.get('is_retrograde')
+                        details.get('is_retrograde'),
+                        details.get('house') # הוספת שדה הבית לייצוא CSV
                     ]
                     writer.writerow(row)
             
             return Response(output.getvalue(), mimetype='text/csv', headers={"Content-disposition": "attachment; filename=chart_data.csv"})
         else:
-            return jsonify({"error": "פורמט CSV נתמך כרגע רק עבור נתוני מפה עם מיקומי כוכבים."}), 400
+            return create_error_response(
+                "פורמט CSV נתמך כרגע רק עבור נתוני מפה עם מיקומי כוכבים.",
+                "CSV_EXPORT_UNSUPPORTED_DATA", 400
+            )
     else:
-        return jsonify({"error": "פורמט ייצוא לא נתמך. פורמטים נתמכים: 'json', 'csv'."}), 400
+        return create_error_response(
+            "פורמט ייצוא לא נתמך. פורמטים נתמכים: 'json', 'csv'.",
+            "UNSUPPORTED_EXPORT_FORMAT", 400
+        )
 
 
 # נקודת קצה לביצוע חיפוש כוכב במזל (קריאה לפונקציה find_constellation_planet_in_sign)
@@ -141,6 +179,7 @@ def find_pattern():
     """
     מקבל שם כוכב, מזל ותאריכי התחלה וסיום (שנה, חודש, יום, ודגל is_bce)
     כדי למצוא דפוסים היסטוריים. מחזיר את התוצאות בפורמט JSON, כולל זמן ביצוע.
+    **מעודכן**: תומך ב-max_results.
     """
     data = request.json
     planet_name = data.get('planet_name')
@@ -160,11 +199,16 @@ def find_pattern():
     is_end_bce = data.get('is_end_bce')
 
     resolution = data.get('resolution')
+    max_results = data.get('max_results') # חדש: קבלת max_results
+
 
     # **חדש/משופר: בדיקות קלט חזקות יותר**
     if any(val is None for val in [planet_name, sign_name, start_year, start_month, start_day, is_start_bce,
                                    end_year, end_month, end_day, is_end_bce, resolution]):
-        return jsonify({"error": "נתונים חסרים: ודא שכל שדות התאריך, הכוכב, המזל והרזולוציה סופקו."}), 400
+        return create_error_response(
+            "נתונים חסרים: ודא שכל שדות התאריך, הכוכב, המזל והרזולוציה סופקו.",
+            "MISSING_DATA", 400
+        )
 
     try:
         start_year_astro = convert_year_to_astronomical(int(start_year), bool(is_start_bce))
@@ -175,7 +219,9 @@ def find_pattern():
             planet_name, sign_name, 
             start_year_astro, int(start_month), int(start_day), 
             end_year_astro, int(end_month), int(end_day), 
-            resolution, degree if degree is not None else None # העבר None אם ריק
+            resolution, 
+            degree if degree is not None else None,
+            max_results # חדש: העברת max_results
         )
         end_time = time.time()
         duration_ms = round((end_time - start_time) * 1000, 2)
@@ -183,9 +229,17 @@ def find_pattern():
         response_data = {'results': result, 'duration_ms': duration_ms}
         return jsonify(response_data)
     except ValueError as e:
-        return jsonify({'error': f"שגיאה בעיבוד תאריך או מעלה: {e}"}), 400
+        return create_error_response(
+            f"שגיאה בעיבוד תאריך או מעלה: {e}",
+            "INVALID_INPUT_DATA", 400,
+            details={"error_from_module": str(e)}
+        )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return create_error_response(
+            "שגיאת שרת פנימית במהלך חיפוש דפוסים.",
+            "INTERNAL_SERVER_ERROR", 500,
+            details={"error_message": str(e)}
+        )
 
 # נקודת קצה לביצוע חיפוש היבטים היסטוריים (קריאה לפונקציה find_constellation_aspect)
 @app.route('/find_aspect', methods=['POST'])
@@ -193,6 +247,7 @@ def find_aspect():
     """
     מקבל שני שמות כוכבים, שם היבט ותאריכי התחלה וסיום (שנה, חודש, יום, ודגל is_bce)
     כדי למצוא היבטים היסטוריים. מחזיר את התוצאות בפורמט JSON, כולל זמן ביצוע.
+    **מעודכן**: תומך ב-max_results.
     """
     data = request.json
     planet1_name = data.get('planet1_name')
@@ -212,11 +267,15 @@ def find_aspect():
     is_end_bce = data.get('is_end_bce')
 
     resolution = data.get('resolution')
+    max_results = data.get('max_results') # חדש: קבלת max_results
 
     # **חדש/משופר: בדיקות קלט חזקות יותר**
     if any(val is None for val in [planet1_name, planet2_name, aspect_name, start_year, start_month, start_day, is_start_bce,
                                    end_year, end_month, end_day, is_end_bce, resolution]):
-        return jsonify({"error": "נתונים חסרים: ודא שכל שדות התאריך, הכוכבים, ההיבט והרזולוציה סופקו."}), 400
+        return create_error_response(
+            "נתונים חסרים: ודא שכל שדות התאריך, הכוכבים, ההיבט והרזולוציה סופקו.",
+            "MISSING_DATA", 400
+        )
 
     try:
         start_year_astro = convert_year_to_astronomical(int(start_year), bool(is_start_bce))
@@ -227,7 +286,8 @@ def find_aspect():
             planet1_name, planet2_name, aspect_name,
             start_year_astro, int(start_month), int(start_day),
             end_year_astro, int(end_month), int(end_day),
-            resolution
+            resolution,
+            max_results = max_results # חדש: העברת max_results
         )
         end_time = time.time()
         duration_ms = round((end_time - start_time) * 1000, 2)
@@ -235,9 +295,17 @@ def find_aspect():
         response_data = {'results': result, 'duration_ms': duration_ms}
         return jsonify(response_data)
     except ValueError as e:
-        return jsonify({'error': f"שגיאה בעיבוד תאריך: {e}"}), 400
+        return create_error_response(
+            f"שגיאה בעיבוד תאריך: {e}",
+            "INVALID_INPUT_DATA", 400,
+            details={"error_from_module": str(e)}
+        )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return create_error_response(
+            "שגיאת שרת פנימית במהלך חיפוש היבטים.",
+            "INTERNAL_SERVER_ERROR", 500,
+            details={"error_message": str(e)}
+        )
 
 # נקודת קצה חדשה לביצוע חיפוש קונסטלציה מורכבת (קריאה לפונקציה find_complex_constellation)
 @app.route('/find_complex_constellation', methods=['POST'])
@@ -245,6 +313,7 @@ def find_complex_constellation_route():
     """
     מקבל רשימת תנאים מורכבים ותאריכי התחלה וסיום (שנה, חודש, יום, ודגל is_bce)
     כדי למצוא תבניות מורכבות. מחזיר את התוצאות בפורמט JSON, כולל זמן ביצוע.
+    **מעודכן**: תומך ב-max_results.
     """
     data = request.json
     conditions = data.get('conditions')
@@ -262,11 +331,15 @@ def find_complex_constellation_route():
     is_end_bce = data.get('is_end_bce')
 
     resolution = data.get('resolution')
+    max_results = data.get('max_results') # חדש: קבלת max_results
 
     # **חדש/משופר: בדיקות קלט חזקות יותר**
     if any(val is None for val in [conditions, start_year, start_month, start_day, is_start_bce,
                                    end_year, end_month, end_day, is_end_bce, resolution]):
-        return jsonify({"error": "נתונים חסרים: ודא שכל שדות התנאים, התאריכים והרזולוציה סופקו."}), 400
+        return create_error_response(
+            "נתונים חסרים: ודא שכל שדות התנאים, התאריכים והרזולוציה סופקו.",
+            "MISSING_DATA", 400
+        )
 
     try:
         start_year_astro = convert_year_to_astronomical(int(start_year), bool(is_start_bce))
@@ -277,7 +350,8 @@ def find_complex_constellation_route():
             conditions, 
             start_year_astro, int(start_month), int(start_day),
             end_year_astro, int(end_month), int(end_day),
-            resolution
+            resolution,
+            max_results # חדש: העברת max_results
         )
         end_time = time.time()
         duration_ms = round((end_time - start_time) * 1000, 2)
@@ -285,9 +359,17 @@ def find_complex_constellation_route():
         response_data = {'results': result, 'duration_ms': duration_ms}
         return jsonify(response_data)
     except ValueError as e:
-        return jsonify({'error': f"שגיאה בעיבוד תאריך או תנאים: {e}"}), 400
+        return create_error_response(
+            f"שגיאה בעיבוד תאריך או תנאים: {e}",
+            "INVALID_INPUT_DATA", 400,
+            details={"error_from_module": str(e)}
+        )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return create_error_response(
+            "שגיאת שרת פנימית במהלך חיפוש קונסטלציה מורכבת.",
+            "INTERNAL_SERVER_ERROR", 500,
+            details={"error_message": str(e)}
+        )
 
 
 # נקודת קצה חדשה לחישוב נתונים לתרשים סינוסי/גלי (קריאה לפונקציה generate_sine_chart_data)
@@ -319,7 +401,10 @@ def generate_sine_chart_data_route():
     # **חדש/משופר: בדיקות קלט חזקות יותר**
     if any(val is None for val in [planet_names, start_year, start_month, start_day, is_start_bce,
                                    end_year, end_month, end_day, is_end_bce, resolution]):
-        return jsonify({"error": "נתונים חסרים: ודא שכל שדות הכוכבים, התאריכים והרזולוציה סופקו."}), 400
+        return create_error_response(
+            "נתונים חסרים: ודא שכל שדות הכוכבים, התאריכים והרזולוציה סופקו.",
+            "MISSING_DATA", 400
+        )
 
     try:
         start_year_astro = convert_year_to_astronomical(int(start_year), bool(is_start_bce))
@@ -338,9 +423,17 @@ def generate_sine_chart_data_route():
         response_data = {'data_points': result, 'duration_ms': duration_ms}
         return jsonify(response_data)
     except ValueError as e:
-        return jsonify({'error': f"שגיאה בעיבוד תאריך: {e}"}), 400
+        return create_error_response(
+            f"שגיאה בעיבוד תאריך: {e}",
+            "INVALID_INPUT_DATA", 400,
+            details={"error_from_module": str(e)}
+        )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return create_error_response(
+            "שגיאת שרת פנימית במהלך יצירת נתונים לתרשים סינוסי.",
+            "INTERNAL_SERVER_ERROR", 500,
+            details={"error_message": str(e)}
+        )
 
 # נקודת קצה לרישום תוצאות בדיקה (לצורך ניפוי באגים)
 @app.route('/log_test_result', methods=['POST'])
@@ -374,8 +467,11 @@ def log_test_result():
         return jsonify({"status": "success"}), 200
     except Exception as e:
         app.logger.error(f"Failed to log test result to file: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return create_error_response(
+            "שגיאת שרת פנימית ברישום תוצאת בדיקה.",
+            "LOGGING_ERROR", 500,
+            details={"error_message": str(e)}
+        )
 
 if __name__ == '__main__':
     app.run(debug=True)
-

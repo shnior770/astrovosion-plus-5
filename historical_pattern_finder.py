@@ -11,7 +11,8 @@ from astro import (
     GEOMETRIC_PATTERN_ORB, # נייבא את האורב הגאומטרי הקבוע
     get_angular_distance,
     find_all_grand_trines,
-    find_star_of_david
+    find_star_of_david,
+    calculate_birth_chart # ייבוא calculate_birth_chart לצורך 'all_planets_at_date'
 )
 
 # הגדרת נתיב לקבצי האפמריס (חובה עבור swisseph)
@@ -75,11 +76,13 @@ def find_constellation_planet_in_sign(
     start_year: int, start_month: int, start_day: int,
     end_year: int, end_month: int, end_day: int,
     resolution: str = "daily", 
-    degree: Optional[int] = None
+    degree: Optional[int] = None,
+    max_results: Optional[int] = None # חדש: פרמטר להגבלת תוצאות
 ) -> List[Dict[str, Any]]:
     """
     מחפש תאריכים שבהם כוכב מסוים נמצא במזל ספציפי, ואולי גם במעלה ספציפית.
     מקבל שנות התחלה וסיום בפורמט אסטרונומי (שלילי עבור שנים לפני הספירה).
+    **מעודכן**: תומך ב-max_results וכולל את כל מיקומי הכוכבים בתאריך שנמצא.
     """
     se.set_ephe_path('ephe')
     
@@ -93,17 +96,22 @@ def find_constellation_planet_in_sign(
 
     planet_id = PLANETS_HEBREW_MAP.get(planet_name)
     if planet_id is None:
-        return [{"error": f"שם כוכב לא חוקי: {planet_name}"}]
+        # החזרת שגיאה בפורמט שצד הלקוח יוכל לזהות כבעיה בפרמטר קלט
+        return [{"error_type": "InvalidInput", "message": f"שם כוכב לא חוקי: {planet_name}"}]
 
     # ודא שהמזל קיים במילון טווחי המעלות
     if sign_name not in SIGNS_HEBREW_MAP_DEGREE_RANGES:
-        return [{"error": f"שם מזל לא חוקי: {sign_name}"}]
+        return [{"error_type": "InvalidInput", "message": f"שם מזל לא חוקי: {sign_name}"}]
     
     sign_start_deg, sign_end_deg = SIGNS_HEBREW_MAP_DEGREE_RANGES[sign_name]
 
     print(f"מתחיל חיפוש היסטורי עבור {planet_name} ב{sign_name} (מעלה {degree if degree is not None else 'כלשהי'}) מ- {start_dt.strftime('%Y-%m-%d')} עד {end_dt.strftime('%Y-%m-%d')} ברזולוציית {resolution}...")
 
     while current_date <= end_dt.date():
+        # עצירה אם הגענו למגבלת התוצאות
+        if max_results is not None and len(results) >= max_results:
+            break
+
         # se.utc_to_jd מקבל שנה, חודש, יום בנפרד (כולל שנים אסטרונומיות 0 או שליליות)
         jd_utc = se.utc_to_jd(current_date.year, current_date.month, current_date.day, 0, 0, 0)[1]
         
@@ -116,12 +124,51 @@ def find_constellation_planet_in_sign(
                 degree_in_sign = int(longitude) % 30
                 # אם נתון גם מעלה, בדוק התאמה
                 if degree is None or degree_in_sign == degree:
+                    # חדש: קריאה ל-calculate_birth_chart כדי לקבל את כל מיקומי הכוכבים
+                    # נצטרך לספק ל-calculate_birth_chart את השנה בפורמט הקלנדרי המקורי
+                    # אבל calculate_birth_chart כבר מטפלת בהמרת השנה האסטרונומית
+                    # ולכן נשתמש בשנה האסטרונומית ישירות עבור calculate_birth_chart
+                    
+                    # זיהוי השנה האסטרונומית של current_date
+                    astro_year = current_date.year
+                    if current_date.year <= 0: # אם זה 1 לפנה"ס או לפני
+                        astro_year = -(current_date.year - 1) # המרה לשנה קלנדרית רגילה
+                        if astro_year == 1: # 1 לפנה"ס
+                            astro_year = 0 # חזרה לפורמט אסטרונומי
+                        elif astro_year > 1:
+                            astro_year = - (astro_year -1)
+
+                    
+                    # קריאה ל-calculate_birth_chart כדי לקבל את כל מיקומי הכוכבים ליום זה
+                    # נצטרך לספק קו רוחב וקו אורך דמה כי find_constellation_planet_in_sign לא מקבל אותם.
+                    # נניח ש-lat, long_geo הם פרמטרים נוספים אם נרצה חישוב מדויק של כל המפה,
+                    # אך לצורך 'all_planets_at_date' המפתח ביקש רק מיקומים
+                    
+                    # לטובת מילוי 'all_planets_at_date', נבצע חישוב מיקומי כוכבים בלבד
+                    # אם נצטרך את כל המידע כמו ב-calculate_birth_chart, נצטרך להעביר את lat, long
+                    
+                    # פשוט נחשב את מיקומי כל הכוכבים ליום הזה
+                    all_planets_daily_pos = {}
+                    for p_name_hebrew, p_id in PLANETS_HEBREW_MAP.items():
+                        try:
+                            daily_planet_pos, _ = se.calc_ut(jd_utc, p_id, se.SWE_FLG_SPEED)
+                            all_planets_daily_pos[p_name_hebrew] = {
+                                "longitude": round(daily_planet_pos[0] % 360, 2),
+                                "speed": round(daily_planet_pos[3], 4),
+                                "is_retrograde": daily_planet_pos[3] < 0
+                            }
+                        except Exception as inner_e:
+                            print(f"שגיאה בחישוב כל הכוכבים עבור {current_date}: {inner_e}")
+                            all_planets_daily_pos[p_name_hebrew] = {"error": "Failed to calculate position"}
+
+
                     results.append({
                         "date": str(current_date),
                         "planet_name": planet_name,
                         "sign_name": sign_name,
                         "longitude": round(longitude, 2),
-                        "degree_in_sign": degree_in_sign
+                        "degree_in_sign": degree_in_sign,
+                        "all_planets_at_date": all_planets_daily_pos # חדש: כל מיקומי הכוכבים
                     })
         except Exception as e:
             print(f"שגיאה בחישוב מיקום {planet_name} בתאריך {current_date}: {e}")
@@ -136,11 +183,13 @@ def find_constellation_aspect(
     planet1_name: str, planet2_name: str, aspect_name: str, 
     start_year: int, start_month: int, start_day: int,
     end_year: int, end_month: int, end_day: int,
-    resolution: str = "daily", orb: float = 1.0
+    resolution: str = "daily", orb: float = 1.0, # אורב ברירת מחדל
+    max_results: Optional[int] = None # חדש: פרמטר להגבלת תוצאות
 ) -> List[Dict[str, Any]]:
     """
     מחפש תאריכים שבהם נוצר היבט ספציפי בין שני כוכבים.
     מקבל שנות התחלה וסיום בפורמט אסטרונומי (שלילי עבור שנים לפני הספירה).
+    **מעודכן**: תומך ב-max_results וכולל את כל מיקומי הכוכבים בתאריך שנמצא.
     """
     se.set_ephe_path('ephe')
     
@@ -156,20 +205,28 @@ def find_constellation_aspect(
     planet2_id = PLANETS_HEBREW_MAP.get(planet2_name)
     
     if planet1_id is None or planet2_id is None:
-        return [{"error": f"שם כוכב לא חוקי: {planet1_name} או {planet2_name}"}]
+        return [{"error_type": "InvalidInput", "message": f"שם כוכב לא חוקי: {planet1_name} או {planet2_name}"}]
 
-    ASPECT_DEGREES = {
-        "צמידות": 0, "היפוך": 180, "טרין": 120, "סקסטיל": 60, "ריבוע": 90
-    }
-
-    if aspect_name not in ASPECT_DEGREES:
-        return [{"error": f"שם היבט לא חוקי: {aspect_name}"}]
+    # השתמש במילון היבטים המפורט מ-astro.py
+    from astro import ASPECTS_DEGREE_ORB_CONFIG # ייבוא חדש!
     
-    target_degree = ASPECT_DEGREES[aspect_name]
+    aspect_info = ASPECTS_DEGREE_ORB_CONFIG.get(aspect_name)
+    if aspect_info is None:
+        return [{"error_type": "InvalidInput", "message": f"שם היבט לא חוקי: {aspect_name}"}]
+    
+    target_degree = aspect_info["degree"]
+    # השתמש באורב המוגדר מראש במילון ASPECT_DEGREE_ORB_CONFIG, אלא אם הועבר אורב ספציפי
+    # נגדיר את זה כברירת מחדל ואפשרות ל-override
+    effective_orb = orb if orb is not None else aspect_info["orb"] 
+
 
     print(f"מתחיל חיפוש היסטורי עבור היבט {aspect_name} בין {planet1_name} ל-{planet2_name} מ- {start_dt.strftime('%Y-%m-%d')} עד {end_dt.strftime('%Y-%m-%d')} ברזולוציית {resolution}...")
 
     while current_date <= end_dt.date():
+        # עצירה אם הגענו למגבלת התוצאות
+        if max_results is not None and len(results) >= max_results:
+            break
+
         # se.utc_to_jd מקבל שנה, חודש, יום בנפרד (כולל שנים אסטרונומיות 0 או שליליות)
         jd_utc = se.utc_to_jd(current_date.year, current_date.month, current_date.day, 0, 0, 0)[1]
         
@@ -184,14 +241,29 @@ def find_constellation_aspect(
             if diff > 180:
                 diff = 360 - diff
 
-            if abs(diff - target_degree) <= orb:
+            if abs(diff - target_degree) <= effective_orb: # שימוש ב-effective_orb
+                # חדש: קריאה לחישוב כל הכוכבים ליום זה
+                all_planets_daily_pos = {}
+                for p_name_hebrew, p_id in PLANETS_HEBREW_MAP.items():
+                    try:
+                        daily_planet_pos, _ = se.calc_ut(jd_utc, p_id, se.SWE_FLG_SPEED)
+                        all_planets_daily_pos[p_name_hebrew] = {
+                            "longitude": round(daily_planet_pos[0] % 360, 2),
+                            "speed": round(daily_planet_pos[3], 4),
+                            "is_retrograde": daily_planet_pos[3] < 0
+                        }
+                    except Exception as inner_e:
+                        print(f"שגיאה בחישוב כל הכוכבים עבור {current_date}: {inner_e}")
+                        all_planets_daily_pos[p_name_hebrew] = {"error": "Failed to calculate position"}
+
                 results.append({
                     "date": str(current_date),
                     "planet1": planet1_name,
                     "planet2": planet2_name,
                     "aspect": aspect_name,
                     "actual_difference": round(diff, 2),
-                    "orb": round(abs(diff - target_degree), 2)
+                    "orb": round(abs(diff - target_degree), 2),
+                    "all_planets_at_date": all_planets_daily_pos # חדש: כל מיקומי הכוכבים
                 })
         except Exception as e:
             print(f"שגיאה בחישוב מיקום בתאריך {current_date}: {e}")
@@ -205,7 +277,8 @@ def find_complex_constellation(
     conditions: List[Dict[str, Any]], 
     start_year: int, start_month: int, start_day: int,
     end_year: int, end_month: int, end_day: int,
-    resolution: str = "daily"
+    resolution: str = "daily",
+    max_results: Optional[int] = None # חדש: פרמטר להגבלת תוצאות
 ) -> List[Dict[str, Any]]:
     """
     מחפש תאריכים שבהם קבוצת כוכבים עומדת במספר תנאים בו-זמנית.
@@ -215,6 +288,7 @@ def find_complex_constellation(
     בנוסף, הפונקציה כוללת אופטימיזציית חישוב:
     אם החיפוש מערב כוכבים איטיים (כמו פלוטו) ברזולוציה יומית/שבועית על פני טווח ארוך,
     תתקבל אזהרה לגבי יעילות.
+    **מעודכן**: תומך ב-max_results וכולל את כל מיקומי הכוכבים בתאריך שנמצא.
     """
     se.set_ephe_path('ephe')
     
@@ -240,10 +314,8 @@ def find_complex_constellation(
     # הערכת משך החיפוש הכולל בימים
     total_search_days = (end_dt.date() - start_dt.date()).days # השתמש ב-date objects להפרש
 
-    optimization_warning = None
+    # אזהרה על חיפוש לא יעיל בכוכבים איטיים
     if are_slow_planets_involved:
-        # אם יש כוכבים איטיים והטווח ארוך מאוד והרזולוציה עדינה
-        # (לדוגמה, חיפוש יומי/שבועי מעל שנה-שנתיים כשלפחות כוכב אחד איטי מאוד)
         if total_search_days > 365 * 2 and (resolution == "daily" or resolution == "weekly"):
             optimization_warning = {
                 "type": "warning",
@@ -259,11 +331,15 @@ def find_complex_constellation(
 
     # כעת, נחזור על הלוגיקה המקורית לחיפוש תבניות מורכבות:
     while current_date <= end_dt.date():
+        # עצירה אם הגענו למגבלת התוצאות
+        if max_results is not None and len(results) >= max_results:
+            break
+
         # se.utc_to_jd מקבל שנה, חודש, יום בנפרד (כולל שנים אסטרונומיות 0 או שליליות)
         jd_utc = se.utc_to_jd(current_date.year, current_date.month, current_date.day, 0, 0, 0)[1]
         
         all_conditions_met = True
-        daily_positions = {} # נאסוף את כל המיקומים ליום זה
+        daily_positions_for_conditions = {} # נאסוף את המיקומים עבור התנאים הספציפיים
         
         for condition in conditions:
             planet_name = condition.get('planet_name')
@@ -295,7 +371,7 @@ def find_complex_constellation(
                     all_conditions_met = False
                     break # התנאי למעלה לא מתקיים
 
-                daily_positions[planet_name] = {
+                daily_positions_for_conditions[planet_name] = {
                     "longitude": round(longitude, 2),
                     "sign": sign_name,
                     "degree_in_sign": degree_in_sign
@@ -307,9 +383,24 @@ def find_complex_constellation(
                 break # שגיאה, דילוג על היום
 
         if all_conditions_met:
+            # חדש: קריאה לחישוב כל הכוכבים ליום זה
+            all_planets_daily_pos = {}
+            for p_name_hebrew, p_id in PLANETS_HEBREW_MAP.items():
+                try:
+                    daily_planet_pos, _ = se.calc_ut(jd_utc, p_id, se.SWE_FLG_SPEED)
+                    all_planets_daily_pos[p_name_hebrew] = {
+                        "longitude": round(daily_planet_pos[0] % 360, 2),
+                        "speed": round(daily_planet_pos[3], 4),
+                        "is_retrograde": daily_planet_pos[3] < 0
+                    }
+                except Exception as inner_e:
+                    print(f"שגיאה בחישוב כל הכוכבים עבור {current_date}: {inner_e}")
+                    all_planets_daily_pos[p_name_hebrew] = {"error": "Failed to calculate position"}
+
             results.append({
                 "date": str(current_date),
-                "planets_meeting_conditions": daily_positions
+                "planets_meeting_conditions": daily_positions_for_conditions,
+                "all_planets_at_date": all_planets_daily_pos # חדש: כל מיקומי הכוכבים
             })
 
         current_date = calculate_next_date_for_search(current_date, resolution)
@@ -326,6 +417,12 @@ if __name__ == "__main__":
     results1 = find_constellation_planet_in_sign("שמש", "טלה", 2023, 3, 1, 2023, 4, 30, "daily", 15)
     print(f"נמצאו {len(results1)} תאריכים עבור שמש בטלה 15: {results1}")
 
+    # בדיקה עם max_results
+    print("\n--- בדיקת find_constellation_planet_in_sign (עם max_results=2) ---")
+    results_max = find_constellation_planet_in_sign("שמש", "טלה", 2023, 3, 1, 2023, 4, 30, "daily", max_results=2)
+    print(f"נמצאו {len(results_max)} תאריכים עבור שמש בטלה (max_results=2): {results_max}")
+
+
     print("\n--- בדיקת find_constellation_planet_in_sign (שמש בטלה 15, 1563 לפנה''ס - 1562 לפנה''ס) ---")
     # 1563 לפנה"ס היא שנה -1562 בפורמט אסטרונומי
     # 1562 לפנה"ס היא שנה -1561 בפורמט אסטרונומי
@@ -337,6 +434,12 @@ if __name__ == "__main__":
     print("\n--- בדיקת find_constellation_aspect (צמידות ירח-שמש, 2023) ---")
     results2 = find_constellation_aspect("ירח", "שמש", "צמידות", 2023, 1, 1, 2023, 3, 1, "daily")
     print(f"נמצאו {len(results2)} תאריכים עבור צמידות ירח-שמש: {results2}")
+
+    # בדיקה עם max_results
+    print("\n--- בדיקת find_constellation_aspect (עם max_results=2) ---")
+    results_max_aspect = find_constellation_aspect("ירח", "שמש", "צמידות", 2023, 1, 1, 2023, 3, 1, "daily", max_results=2)
+    print(f"נמצאו {len(results_max_aspect)} תאריכים עבור צמידות ירח-שמש (max_results=2): {results_max_aspect}")
+
 
     print("\n--- בדיקת find_constellation_aspect (צמידות ירח-שמש, 1 לפנה''ס - 1 לספירה) ---")
     # 1 לפנה"ס היא שנה 0 בפורמט אסטרונומי
@@ -354,6 +457,14 @@ if __name__ == "__main__":
     print(f"נמצאו {len(results_complex_slow)} תאריכים עבור חיפוש מורכב (יופיטר):")
     for r in results_complex_slow:
         print(r)
+
+    # בדיקה עם max_results
+    print("\n--- בדיקת find_complex_constellation (עם max_results=2) ---")
+    results_max_complex = find_complex_constellation(complex_cond_slow, 2000, 1, 1, 2005, 1, 1, "daily", max_results=2)
+    print(f"נמצאו {len(results_max_complex)} תאריכים עבור חיפוש מורכב (max_results=2):")
+    for r in results_max_complex:
+        print(r)
+
 
     print("\n--- בדיקת find_complex_constellation (שמש וירח במזל ספציפי, טווח קצר, 2024) ---")
     complex_cond_fast = [

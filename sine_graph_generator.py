@@ -3,6 +3,9 @@ from datetime import date, timedelta, datetime
 from typing import List, Dict, Any, Optional
 import itertools
 
+# הגדרת נתיב לקבצי האפמריס (חובה עבור swisseph)
+se.set_ephe_path('ephe')
+
 # מילון שמות כוכבים
 PLANETS_HEBREW_MAP = {
     "שמש": se.SUN, "ירח": se.MOON, "מרקורי": se.MERCURY, "ונוס": se.VENUS,
@@ -11,17 +14,12 @@ PLANETS_HEBREW_MAP = {
     "ראש תלי": se.TRUE_NODE, "זנב תלי": se.MEAN_NODE # ניתן להשתמש ב-MEAN_NODE או ב-TRUE_NODE
 }
 
-# מילון היבטים עם מעלות ואורבים
-ASPECTS_HEBREW_MAP = {
-    "צמידות": {"degree": 0, "orb": 2},
-    "היפוך": {"degree": 180, "orb": 2},
-    "טרין": {"degree": 120, "orb": 2},
-    "סקסטיל": {"degree": 60, "orb": 2},
-    "ריבוע": {"degree": 90, "orb": 2}
-}
+# --- עדכון: מילון היבטים עם מעלות ואורבים (כמו ב-astro.py) ---
+# אנו מייבאים את זה מ-astro.py כדי להבטיח עקביות בכל המערכת
+from astro import ASPECTS_DEGREE_ORB_CONFIG, GEOMETRIC_PATTERN_ORB
+# שימו לב: ASPECTS_HEBREW_MAP המקורי הוחלף ב-ASPECTS_DEGREE_ORB_CONFIG מ-astro.py
+# ו-GEOMETRIC_PATTERN_ORB מיובא גם כן.
 
-# הגדרת אורב כללי לתבניות גאומטריות
-GEOMETRIC_PATTERN_ORB = 5 # מעלות
 
 def calculate_next_date_for_graph(current_date: date, resolution: str) -> date:
     """מחשבת את התאריך הבא בהתאם לרזולוציה עבור גרף סינוסי.
@@ -35,7 +33,6 @@ def calculate_next_date_for_graph(current_date: date, resolution: str) -> date:
         current_year = current_date.year
         current_day = current_date.day
 
-        # ננסה לקדם בחודש. אם התאריך לא חוקי, נקדם ליום האחרון של החודש הבא.
         try:
             next_month = current_month + 1
             next_year = current_year
@@ -43,15 +40,10 @@ def calculate_next_date_for_graph(current_date: date, resolution: str) -> date:
                 next_month = 1
                 next_year += 1
             
-            # בדיקה עבור שנים אסטרונומיות
-            if next_year == 0: # אם השנה היא 0 בפורמט אסטרונומי, זהו 1 לפנה"ס
-                # אובייקט date לא תומך בשנה 0, אז נטפל בזה ידנית או נמנע מיצירה ישירה
-                # עבור תאריך הבא, נדלג לשנה הבאה אם אנחנו צפויים להגיע ל-0.
-                # במקרה של חישוב תאריך הבא, סביר ש-current_date כבר תקין
-                pass 
-            
-            next_date_candidate = date(next_year, next_month, current_day)
-            return next_date_candidate
+            # עבור שנים אסטרונומיות (שליליות או 0), אובייקט date עשוי להיות בעייתי.
+            # אנו מניחים ש-datetime.date(year, month, day) יטפל בזה באופן סביר
+            # עבור הטווחים הנפוצים, ושהשנה כבר הומרה לפורמט אסטרונומי ב-app.py.
+            return date(next_year, next_month, current_day)
         except ValueError:
             # אם היום לא חוקי בחודש הבא (לדוגמה, 31 בפברואר), קח את היום האחרון של החודש הבא
             next_month = current_month + 1
@@ -172,6 +164,102 @@ def find_star_of_david(positions: Dict[str, float]) -> Optional[Dict[str, Any]]:
             
     return None
 
+# --- חדש: פונקציה לזיהוי הצטלבות מדויקת בין שני כוכבים (לצורך גרף סינוסי) ---
+def find_exact_intersections_and_aspects_between_points(
+    p1_name: str, p1_lon1: float, p1_lon2: float,
+    p2_name: str, p2_lon1: float, p2_lon2: float,
+    current_date: date, next_date: date,
+    aspects_to_find_config: Dict[str, Any]
+) -> List[Dict[str, Any]]:
+    """
+    מבצע אינטרפולציה לינארית בין שתי נקודות זמן (יומיות/נקודות רזולוציה)
+    כדי לזהות הצטלבויות מדויקות או היבטים מדויקים (אורב 0) בין שני כוכבים.
+    """
+    found_events = []
+
+    # חישוב שינוי מעלות ליום (או לטווח הזמן הזה)
+    delta_p1 = p1_lon2 - p1_lon1
+    delta_p2 = p2_lon2 - p2_lon1
+    
+    # אם כוכב חוצה 360/0, נתאים את הדלתא
+    if abs(delta_p1) > 180: delta_p1 -= 360 * (delta_p1 / abs(delta_p1))
+    if abs(delta_p2) > 180: delta_p2 -= 360 * (delta_p2 / abs(delta_p2))
+
+    # ההפרש היחסי במעלה בין שני הכוכבים
+    relative_speed = delta_p1 - delta_p2
+
+    # אם אין תנועה יחסית משמעותית, אין הצטלבות או היבט מדויק
+    if abs(relative_speed) < 0.0001: # סף קטן מאוד למניעת חלוקה באפס
+        return found_events
+
+    # מספר הימים/צעדים בין current_date ל-next_date
+    num_steps = (next_date - current_date).days # לרוב יהיה 1 ליומי, 7 לשבועי וכו'
+
+    # בדיקת הצטלבות (Conjunction) - כאשר ההפרש בין הכוכבים הוא 0 מעלות
+    initial_diff = get_angular_distance(p1_lon1, p2_lon1)
+    
+    # חיפוש היבטים מדויקים
+    for aspect_name, aspect_info in ASPECTS_DEGREE_ORB_CONFIG.items():
+        target_degree = aspect_info["degree"]
+        
+        # חישוב ההפרש בין ההיבט הקיים ליום הנוכחי לבין היעד
+        # נחשב את ההפרש היחסי (distance to target aspect)
+        current_aspect_diff_from_target = get_angular_distance(p1_lon1, p2_lon1) - target_degree
+        next_aspect_diff_from_target = get_angular_distance(p1_lon2, p2_lon2) - target_degree
+        
+        # כדי לבדוק חציית אפס, אנו רוצים לראות אם הסימנים של ההפרשים שונים
+        # כלומר, אם ההיבט עבר דרך נקודת היעד (target_degree)
+        
+        # טיפול מיוחד בנקודת המעבר מ-360 ל-0 מעלות (או להיפך)
+        # זה קצת מורכב יותר מאינטרפולציה לינארית פשוטה
+        # לצורך פשטות ודיוק, נסתכל על הקו הישר בין שתי הנקודות
+        
+        # הדרך הפשוטה ביותר לזיהוי חצייה:
+        # אם יש היבט ביום הראשון (עם אורב קטן, נניח 0.1)
+        # ואם יש היבט ביום השני (עם אורב קטן, נניח 0.1)
+        # זה מצביע על מעבר קרוב.
+        # אינטרפולציה לינארית בסיסית:
+        
+        # חיפוש חצייה של היבט מדויק (אורב 0)
+        # ננסה למצוא את הנקודה בה (lon1 + speed1*t) - (lon2 + speed2*t) = target_degree +/- 360*N
+        # (lon1-lon2) + (speed1-speed2)*t = target_degree +/- 360*N
+        # (initial_diff) + (relative_speed)*t = target_degree +/- 360*N
+
+        # פתרון עבור t (זמן): t = (target_degree - initial_diff + 360*N) / relative_speed
+        # נבדוק עבור N= -1, 0, 1
+        
+        # יש מספר נקודות חצייה אפשריות לאורך 360 מעלות
+        # נבדוק 3 מקרים של יעד: target_degree, target_degree+360, target_degree-360
+        target_degrees_to_check = [target_degree, target_degree + 360, target_degree - 360]
+
+        for current_target in target_degrees_to_check:
+            # חישוב הזמן היחסי (t) בתוך המרווח (0 עד num_steps)
+            if relative_speed != 0: # לוודא שאין חלוקה באפס
+                t = (current_target - (p1_lon1 - p2_lon1)) / relative_speed
+            else:
+                continue # אין תנועה יחסית, אין חצייה לינארית
+
+            # אם t נמצא בטווח (0, num_steps), יש חצייה בתוך המרווח הנוכחי
+            if 0 <= t <= num_steps: # כולל נקודות הקצה
+                # חישוב התאריך המדויק של ההצטלבות/היבט
+                exact_date = current_date + timedelta(days=t)
+                
+                # חישוב מיקום מדויק בזמן ההצטלבות
+                exact_p1_lon = (p1_lon1 + delta_p1 * (t / num_steps)) % 360
+                exact_p2_lon = (p2_lon1 + delta_p2 * (t / num_steps)) % 360
+
+                found_events.append({
+                    "type": aspect_name, # סוג האירוע: שם ההיבט
+                    "date": str(exact_date.date()), # תאריך האירוע
+                    "exact_time_fraction": t, # חלק היחסי של היום
+                    "planets": [p1_name, p2_name],
+                    "longitudes_at_event": {
+                        p1_name: round(exact_p1_lon, 2),
+                        p2_name: round(exact_p2_lon, 2)
+                    }
+                })
+    return found_events
+
 
 def generate_sine_chart_data(
     planet_names: List[str], 
@@ -185,89 +273,120 @@ def generate_sine_chart_data(
     מייצר נתונים אסטרולוגיים עבור גרף סינוסי, כולל מיקומי כוכבים, היבטים ותבניות גאומטריות,
     לפי רזולוציה.
     מקבל שנות התחלה וסיום בפורמט אסטרונומי (שלילי עבור שנים לפני הספירה).
+    **מעודכן**: כולל זיהוי נקודות הצטלבות/היבטים מדויקים (intersections).
     """
     se.set_ephe_path('ephe')
     
     graph_data = []
+    all_intersections = [] # רשימה חדשה לאחסון הצטלבויות מדויקות
     
     # יצירת אובייקטי date מתאריכי התחלה וסיום
-    # אובייקט date ב-Python לא תומך בשנת 0000, אז נשתמש ב-datetime ונטפל בהמרות
-    # Swiss Ephemeris (se.utc_to_jd) כן תומך בשנה 0.
-    # כאן אנו מייצרים אובייקט date עבור הלוגיקה של timedelta,
-    # כאשר שנת 0 מומרת ל-1 לספירה, ועל כן יש לקחת בחשבון את ההבדל בהצגה
-    # מול ה-frontend שידע להציג נכון את ה-BCE.
-    start_dt = datetime(start_year, start_month, start_day)
-    end_dt = datetime(end_year, end_month, end_day)
+    start_dt_obj = datetime(start_year, start_month, start_day).date()
+    end_dt_obj = datetime(end_year, end_month, end_day).date()
 
-    current_date = start_dt.date() # שימוש באובייקט date
+    current_date = start_dt_obj 
     
     planet_ids = {name: PLANETS_HEBREW_MAP[name] for name in planet_names if name in PLANETS_HEBREW_MAP}
     
     # חיפוש היבטים
-    target_aspect_degrees = {ASPECTS_HEBREW_MAP[aspect]["degree"]: ASPECTS_HEBREW_MAP[aspect]["orb"] for aspect in aspects_to_find or [] if aspect in ASPECTS_HEBREW_MAP}
+    # נשתמש ב-ASPECTS_DEGREE_ORB_CONFIG המיובא מ-astro.py
+    target_aspect_degrees_for_daily_check = {
+        ASPECTS_DEGREE_ORB_CONFIG[aspect]["degree"]: ASPECTS_DEGREE_ORB_CONFIG[aspect]["orb"] 
+        for aspect in aspects_to_find or [] if aspect in ASPECTS_DEGREE_ORB_CONFIG
+    }
+    
+    # הגדרות היבטים מלאות עבור find_exact_intersections_and_aspects_between_points
+    # נכין מילון של aspect_name: aspect_info (degree, orb, type)
+    aspects_for_exact_intersections = {
+        name: info for name, info in ASPECTS_DEGREE_ORB_CONFIG.items() 
+        if name in (aspects_to_find or []) # רק היבטים שהמשתמש ביקש
+    }
 
-    print(f"מתחיל יצירת נתונים לגרף סינוסי מ- {start_dt.strftime('%Y-%m-%d')} עד {end_dt.strftime('%Y-%m-%d')} ברזולוציית {resolution}...")
 
-    while current_date <= end_dt.date():
+    print(f"מתחיל יצירת נתונים לגרף סינוסי מ- {start_dt_obj.strftime('%Y-%m-%d')} עד {end_dt_obj.strftime('%Y-%m-%d')} ברזולוציית {resolution}...")
+
+    # נשמור את המיקומים מהאיטרציה הקודמת כדי לבצע אינטרפולציה
+    previous_daily_positions = {}
+    previous_jd_utc = None
+
+    while current_date <= end_dt_obj:
         # se.utc_to_jd מקבל שנה, חודש, יום בנפרד (כולל שנים אסטרונומיות 0 או שליליות)
         jd_utc = se.utc_to_jd(current_date.year, current_date.month, current_date.day, 0, 0, 0)[1]
         
         daily_positions = {}
         for planet_name, planet_id in planet_ids.items():
             try:
-                planet_pos, _ = se.calc_ut(jd_utc, planet_id)
+                # חשוב לקבל גם מהירות לצורך חישוב מדויק יותר של הצטלבויות (אם כי אינטרפולציה לינארית פשוטה משתמשת רק ב-lon1, lon2)
+                planet_pos, _ = se.calc_ut(jd_utc, planet_id, se.SWE_FLG_SPEED) 
                 daily_positions[planet_name] = round(planet_pos[0], 2)
             except Exception as e:
-                # הדפסת שגיאה אם חישוב כוכב נכשל
                 print(f"שגיאה בחישוב מיקום {planet_name} בתאריך {current_date}: {e}")
-                daily_positions[planet_name] = None # סמן כוכב שלא חושב כראוי
+                daily_positions[planet_name] = None 
+
+
+        # --- זיהוי הצטלבויות (intersections) בין ימים ---
+        # נבצע זאת רק אם זו לא האיטרציה הראשונה ורק אם יש לפחות שני כוכבים נבחרים
+        if previous_jd_utc is not None and len(planet_ids) >= 2:
+            # נבצע בדיקת הצטלבויות לכל זוג כוכבים שנבחר
+            selected_planets_for_intersections = list(planet_ids.keys())
+            for p1_name, p2_name in itertools.combinations(selected_planets_for_intersections, 2):
+                if (p1_name in previous_daily_positions and previous_daily_positions[p1_name] is not None and
+                    p2_name in previous_daily_positions and previous_daily_positions[p2_name] is not None and
+                    p1_name in daily_positions and daily_positions[p1_name] is not None and
+                    p2_name in daily_positions and daily_positions[p2_name] is not None):
+                    
+                    found_exact_events = find_exact_intersections_and_aspects_between_points(
+                        p1_name, previous_daily_positions[p1_name], daily_positions[p1_name],
+                        p2_name, previous_daily_positions[p2_name], daily_positions[p2_name],
+                        current_date - timedelta(days=(current_date - previous_date).days), # תאריך התחלה של המרווח
+                        current_date, # תאריך סיום של המרווח
+                        aspects_for_exact_intersections # העבר את הגדרות ההיבטים
+                    )
+                    if found_exact_events:
+                        all_intersections.extend(found_exact_events)
+
 
         daily_aspects = []
-        # אם יש יותר מכוכב אחד ברשימה וכדאי לבדוק היבטים
+        # אם יש יותר מכוכב אחד ברשימה וכדאי לבדוק היבטים (עם אורב)
         if len(planet_names) >= 2 and target_aspect_degrees:
-            # נבדוק רק בין שני הכוכבים הראשונים ברשימה שנבחרו לגרף, או שנקבל פרמטרים ספציפיים
-            # NOTE: if we want to check aspects for ALL pairs of selected planets, this needs to be a nested loop
-            # for p1_name, p2_name in itertools.combinations(planet_names, 2): # אם רוצים לכל הזוגות
-            #     if (p1_name in daily_positions and daily_positions[p1_name] is not None and
-            #         p2_name in daily_positions and daily_positions[p2_name] is not None):
-            #         lon1 = daily_positions[p1_name]
-            #         lon2 = daily_positions[p2_name]
-            #         ... (שאר לוגיקת ההיבט)
-            # מכיוון שה-frontend מאפשר רק 2 כוכבים לתרשים גלי רגיל (אלא אם נבחרו תבניות),
-            # נתמקד בבדיקת היבטים בין שני הכוכבים הראשונים.
-            if (planet_names[0] in daily_positions and daily_positions[planet_names[0]] is not None and
-                planet_names[1] in daily_positions and daily_positions[planet_names[1]] is not None):
+            for p1_name, p2_name in itertools.combinations(planet_names, 2):
+                if (p1_name in daily_positions and daily_positions[p1_name] is not None and
+                    p2_name in daily_positions and daily_positions[p2_name] is not None):
 
-                lon1 = daily_positions[planet_names[0]]
-                lon2 = daily_positions[planet_names[1]]
-                
-                diff = abs(lon1 - lon2)
-                if diff > 180:
-                    diff = 360 - diff
+                    lon1 = daily_positions[p1_name]
+                    lon2 = daily_positions[p2_name]
+                    
+                    diff = abs(lon1 - lon2)
+                    if diff > 180:
+                        diff = 360 - diff
 
-                for aspect_degree, orb_val in target_aspect_degrees.items():
-                    if abs(diff - aspect_degree) <= orb_val:
-                        # מציאת שם ההיבט מהמילון המקורי
-                        aspect_name_found = next((name for name, info in ASPECTS_HEBREW_MAP.items() if info["degree"] == aspect_degree), "היבט לא ידוע")
-                        daily_aspects.append({
-                            "planet1": planet_names[0],
-                            "planet2": planet_names[1],
-                            "aspect": aspect_name_found,
-                            "orb": round(abs(diff - aspect_degree), 2)
-                        })
+                    for aspect_degree, orb_val in target_aspect_degrees.items():
+                        if abs(diff - aspect_degree) <= orb_val:
+                            # מציאת שם ההיבט מהמילון המקורי (ASPECTS_DEGREE_ORB_CONFIG)
+                            aspect_name_found = next((name for name, info in ASPECTS_DEGREE_ORB_CONFIG.items() if info["degree"] == aspect_degree), "היבט לא ידוע")
+                            daily_aspects.append({
+                                "planet1": p1_name,
+                                "planet2": p2_name,
+                                "aspect": aspect_name_found,
+                                "orb": round(abs(diff - aspect_degree), 2)
+                            })
         
         # זיהוי תבניות גאומטריות
         daily_patterns = []
         if patterns_to_find:
+            # נמיר את daily_positions לפורמט של find_all_grand_trines / find_star_of_david
+            # (מילון של שם_כוכב: קו_אורך)
+            positions_for_patterns = {name: lon for name, lon in daily_positions.items() if lon is not None}
+
             if "Grand Trine" in patterns_to_find:
-                if len(daily_positions) >= 3:
-                    found_gts = find_all_grand_trines(daily_positions)
+                if len(positions_for_patterns) >= 3:
+                    found_gts = find_all_grand_trines(positions_for_patterns)
                     if found_gts:
                         daily_patterns.extend(found_gts)
             
             if "Star of David" in patterns_to_find:
-                if len(daily_positions) >= 6: # מגן דוד דורש 6 כוכבים לפחות
-                    sod = find_star_of_david(daily_positions)
+                if len(positions_for_patterns) >= 6: # מגן דוד דורש 6 כוכבים לפחות
+                    sod = find_star_of_david(positions_for_patterns)
                     if sod:
                         daily_patterns.append(sod)
 
@@ -279,10 +398,19 @@ def generate_sine_chart_data(
             "patterns": daily_patterns
         })
         
+        # שמירת המיקומים הנוכחיים לאיטרציה הבאה
+        previous_daily_positions = daily_positions
+        previous_jd_utc = jd_utc
+        previous_date = current_date # שמור את התאריך הקודם
+
         current_date = calculate_next_date_for_graph(current_date, resolution)
     
     print("יצירת נתונים לגרף סינוסי הסתיימה.")
-    return graph_data
+    
+    return {
+        "data_points": graph_data,
+        "intersections": all_intersections # חדש: החזרת כל ההצטלבויות המדויקות
+    }
 
 if __name__ == "__main__":
     # בדיקת הפונקציה
@@ -296,11 +424,15 @@ if __name__ == "__main__":
         resolution="daily", 
         patterns_to_find=["Grand Trine"]
     )
-    print(f"נמצאו {len(sine_data_gt)} נקודות נתונים.")
-    for item in sine_data_gt[:5]:
+    print(f"נמצאו {len(sine_data_gt['data_points'])} נקודות נתונים.")
+    for item in sine_data_gt['data_points'][:5]:
         print(f" - {item}")
-    if len(sine_data_gt) > 5:
+    if len(sine_data_gt['data_points']) > 5:
         print("...")
+    print(f"נמצאו {len(sine_data_gt['intersections'])} הצטלבויות מדויקות.")
+    for intersection in sine_data_gt['intersections']:
+        print(f"  - Intersection: {intersection}")
+
 
     print("\n--- יצירת נתונים לגרף סינוסי עבור יופיטר, שבתאי (ללא Grand Trine) (2023) ---")
     sine_data_no_pattern = generate_sine_chart_data(
@@ -308,11 +440,13 @@ if __name__ == "__main__":
         2023, 1, 1, 2023, 1, 31, 
         resolution="weekly"
     )
-    print(f"נמצאו {len(sine_data_no_pattern)} נקודות נתונים.")
-    for item in sine_data_no_pattern[:5]:
+    print(f"נמצאו {len(sine_data_no_pattern['data_points'])} נקודות נתונים.")
+    for item in sine_data_no_pattern['data_points'][:5]:
         print(f" - {item}")
-    if len(sine_data_no_pattern) > 5:
+    if len(sine_data_no_pattern['data_points']) > 5:
         print("...")
+    print(f"נמצאו {len(sine_data_no_pattern['intersections'])} הצטלבויות מדויקות.")
+
 
     print("\n--- יצירת נתונים לגרף סינוסי עם בדיקת מגן דוד (טווח רחב יותר, כולל שנים לפנה''ס) ---")
     # 1980-01-01 עד 2000-01-01 - שנים חיוביות
@@ -328,13 +462,14 @@ if __name__ == "__main__":
         patterns_to_find=["Star of David"]
     )
     
-    print(f"נמצאו {len(sine_data_sod_positive)} נקודות נתונים.")
+    print(f"נמצאו {len(sine_data_sod_positive['data_points'])} נקודות נתונים.")
     sod_found_count_positive = 0
-    for item in sine_data_sod_positive:
+    for item in sine_data_sod_positive['data_points']:
         if item["patterns"]:
             print(f" - {item['date']}: {item['patterns']}")
             sod_found_count_positive += 1
     print(f"נמצאו {sod_found_count_positive} תאריכים עם תבניות מגן דוד (שנים חיוביות).")
+    print(f"נמצאו {len(sine_data_sod_positive['intersections'])} הצטלבויות מדויקות.")
 
 
     # בדיקה עבור שנים לפני הספירה
@@ -352,11 +487,12 @@ if __name__ == "__main__":
         patterns_to_find=["Star of David"]
     )
     
-    print(f"נמצאו {len(sine_data_sod_bce)} נקודות נתונים.")
+    print(f"נמצאו {len(sine_data_sod_bce['data_points'])} נקודות נתונים.")
     sod_found_count_bce = 0
-    for item in sine_data_sod_bce:
+    for item in sine_data_sod_bce['data_points']:
         if item["patterns"]:
             print(f" - {item['date']}: {item['patterns']}")
             sod_found_count_bce += 1
     print(f"נמצאו {sod_found_count_bce} תאריכים עם תבניות מגן דוד (שנים לפני הספירה).")
+    print(f"נמצאו {len(sine_data_sod_bce['intersections'])} הצטלבויות מדויקות.")
 
