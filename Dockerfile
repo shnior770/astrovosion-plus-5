@@ -1,5 +1,5 @@
     # השתמש בתמונת בסיס קטנה של פייתון
-    FROM python:3.11-slim-buster
+    FROM python:3.11-slim-bullseye
 
     # הגדרת משתני סביבה לאיתור קבצי האפמריס (ephe)
     ENV SWISSEPH_PATH_ABS /app/ephe
