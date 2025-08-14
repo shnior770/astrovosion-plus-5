@@ -6,6 +6,7 @@ import time
 import json
 import csv # ייבוא מודול csv
 from io import StringIO # לייצוא ל-CSV בזיכרון
+from typing import Optional, Dict, Any # ייבוא עבור Optional ו-Dict
 
 # ודא שהסקריפט יוכל למצוא את הקבצים
 sys.path.append('.')
@@ -257,7 +258,7 @@ def find_aspect():
     # קבלת רכיבי תאריך התחלה
     start_year = data.get('start_year')
     start_month = data.get('start_month')
-    start_day = data.get('start_day')
+    start_day = data.get('day')
     is_start_bce = data.get('is_start_bce')
 
     # קבלת רכיבי תאריך סיום
@@ -474,4 +475,6 @@ def log_test_result():
         )
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Flask ירוץ על פורט 8080 בתוך הקונטיינר, כפי ש-Cloud Run מצפה.
+    # המשתנה PORT מוגדר אוטומטית על ידי Cloud Run.
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
